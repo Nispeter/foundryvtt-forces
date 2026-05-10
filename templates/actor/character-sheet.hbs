@@ -1,0 +1,593 @@
+<form class="{{cssClass}} forces-layout" autocomplete="off">
+
+  <!-- ═══════════════ HEADER ═══════════════ -->
+  <header class="sheet-header">
+    <div class="portrait-wrap">
+      <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" />
+      <div class="nivel-badge" title="Nivel">
+        <input type="number" name="system.nivel" value="{{system.nivel}}" min="1" max="20" class="nivel-input" />
+      </div>
+    </div>
+
+    <div class="header-fields">
+      <div class="header-row">
+        <span class="hf-label">Nombre</span>
+        <input class="hf-input hf-name" type="text" name="name" value="{{actor.name}}" />
+        <span class="hf-label">Origen</span>
+        <input class="hf-input" type="text" name="system.origen" value="{{system.origen}}" />
+        <span class="hf-label">Vive en</span>
+        <input class="hf-input" type="text" name="system.viveEn" value="{{system.viveEn}}" />
+      </div>
+      <div class="header-row">
+        <span class="hf-label">Especie</span>
+        <input class="hf-input" type="text" name="system.especie" value="{{system.especie}}" />
+        <span class="hf-label">Edad</span>
+        <input class="hf-input hf-short" type="number" name="system.edad" value="{{system.edad}}" />
+        <span class="hf-label">Clase</span>
+        <input class="hf-input" type="text" name="system.clase" value="{{system.clase}}" />
+      </div>
+    </div>
+
+    <!-- Caos + Movimiento badges -->
+    <div class="header-badges">
+      <div class="badge-group">
+        <button type="button" class="rank-badge rank-{{lowercase caos.rank}} roll-caos-badge"
+                title="Tirar Caos (1d20{{signedNum caos.modificador}})">
+          <span class="badge-rank">{{caos.rankDisplay}}</span>
+          <span class="badge-mod">{{signedNum caos.modificador}}</span>
+        </button>
+        <select class="rank-sel badge-rank-picker" data-key="caos">
+          {{#each caos.rankOptions}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{letter}}</option>
+          {{/each}}
+        </select>
+        <div class="badge-label-text">Caos</div>
+        <div class="badge-bonus-row" title="Bonus permanente de Caos">
+          <span class="badge-bonus-lbl">bns</span>
+          <input type="number" name="system.caracteristicas.caos.bonus"
+                 value="{{caos.bonus}}" min="-20" max="20" class="badge-bonus-input" />
+        </div>
+      </div>
+
+      <div class="badge-group">
+        <button type="button" class="mov-badge roll-mov-badge"
+                title="Tirar Velocidad (1d20{{signedNum system.caracteristicas.velocidad.modificador}})">
+          <span class="mov-value">{{system.movimiento}}</span>
+          <span class="mov-label">pies</span>
+        </button>
+        <div class="badge-label-text">Movimiento</div>
+        <div class="badge-bonus-row" title="Bonus extra de movimiento">
+          <span class="badge-bonus-lbl">bns</span>
+          <input type="number" name="system.bonusMovimiento"
+                 value="{{system.bonusMovimiento}}" min="-30" max="200" class="badge-bonus-input" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Card colour picker -->
+    <div class="card-color-group" title="Color del encabezado">
+      <span class="card-color-lbl">🎨</span>
+      <input type="color" name="system.cardColor" value="{{system.cardColor}}" class="card-color-input" />
+    </div>
+  </header>
+
+  <!-- ═══════════════ BODY ═══════════════ -->
+  <div class="body-wrapper">
+
+    <nav class="sheet-tabs tabs" data-group="primary">
+      <a class="item" data-tab="principal">
+        <i class="fas fa-bolt tab-icon"></i><span class="tab-text">Principal</span>
+      </a>
+      <a class="item" data-tab="objetos">
+        <i class="fas fa-gem tab-icon"></i><span class="tab-text">Objetos</span>
+      </a>
+      <a class="item" data-tab="feats">
+        <i class="fas fa-star tab-icon"></i><span class="tab-text">Feats</span>
+      </a>
+      <a class="item" data-tab="bio">
+        <i class="fas fa-scroll tab-icon"></i><span class="tab-text">Biografía</span>
+      </a>
+    </nav>
+
+    <section class="sheet-body">
+
+      <!-- ── TAB: PRINCIPAL ── -->
+      <div class="tab principal" data-group="primary" data-tab="principal">
+
+        <section class="section-block caracteristicas-section">
+          <h2 class="section-title">Características</h2>
+          <div class="caracteristicas-row">
+            {{#each caracteristicasList}}
+            <div class="car-cell">
+              <button type="button"
+                      class="car-circle rank-{{lowercase rank}} roll-caracteristica"
+                      data-key="{{key}}"
+                      title="Tirar {{label}} (1d20{{signedNum modificador}})">
+                <span class="car-rank">{{rankDisplay}}</span>
+                <span class="car-mod-sm">{{signedNum modificador}}</span>
+              </button>
+              <select class="rank-sel" data-key="{{key}}">
+                {{#each rankOptions}}
+                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{letter}}</option>
+                {{/each}}
+              </select>
+              <div class="car-bonus-row">
+                <span class="car-bonus-lbl">bns</span>
+                <input type="number" name="system.caracteristicas.{{key}}.bonus"
+                       value="{{bonus}}" min="-20" max="20" class="car-bonus-input" />
+              </div>
+              <div class="car-label">{{label}}</div>
+            </div>
+            {{/each}}
+          </div>
+        </section>
+
+        <div class="main-columns">
+
+          {{#if isChar}}
+          <div class="habilidades-col">
+            <h3 class="col-title">Habilidades</h3>
+            <div class="habilidades-list">
+              {{#each habilidadesList}}
+              <div class="hab-row">
+                <div class="hab-dots">
+                  {{#each dots}}
+                  <span class="skill-dot {{#if this}}filled{{/if}}"
+                        data-key="{{../key}}" data-idx="{{@index}}"></span>
+                  {{/each}}
+                </div>
+                <span class="hab-name roll-habilidad" data-key="{{key}}"
+                      title="Total: {{signedNum total}}">
+                  {{label}} <span class="hab-car">({{car}})</span>
+                </span>
+                <span class="hab-total">{{signedNum total}}</span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+          {{/if}}
+
+          <div class="right-col">
+
+            <!-- Defensas -->
+            <div class="defensas-block section-block">
+              <h3 class="col-title">Defensas</h3>
+
+              <div class="defensa-row">
+                <div class="dc-badge-wrap">
+                  <div class="dc-badge dc-corp" title="Defensa Corporal = 10 + Aguante + Velocidad">
+                    <span class="dc-val">{{system.defensas.defensaCorporal}}</span>
+                  </div>
+                  <span class="dc-lbl">DF Corp</span>
+                </div>
+                <div class="bar-group">
+                  <div class="bar-label-sm">Vida</div>
+                  <div class="bar-track hp-track">
+                    <div class="bar-fill hp-fill" style="width: {{pct system.defensas.vida.value system.defensas.vida.max}}%"></div>
+                    <div class="bar-overlay">
+                      <input type="number" name="system.defensas.vida.value"
+                             value="{{system.defensas.vida.value}}" min="0" class="bar-curr" />
+                      <span class="bar-sep">/</span>
+                      <input type="number" name="system.defensas.vida.max"
+                             value="{{system.defensas.vida.max}}" min="0" class="bar-max" />
+                    </div>
+                  </div>
+                </div>
+                <div class="anillos-wrap" title="Anillos (100 → +20 pies)">
+                  <span class="anillo-icon">A</span>
+                  <input type="number" name="system.defensas.anillos.value"
+                         value="{{system.defensas.anillos.value}}" min="0" max="100"
+                         class="anillos-input" />
+                  <span class="anillos-max">/100</span>
+                </div>
+                <div class="dado-col">
+                  <button type="button" class="roll-vida dado-btn"
+                          title="Tirar 1d{{system.vidaDado}}">
+                    1d{{system.vidaDado}}
+                  </button>
+                  <span class="dado-lbl">Long Rest</span>
+                </div>
+              </div>
+
+              <div class="defensa-row">
+                <div class="dc-badge-wrap">
+                  <div class="dc-badge dc-caos" title="Defensa Caótica = 10 + Caos + Técnica">
+                    <span class="dc-val">{{system.defensas.defensaCaotica}}</span>
+                  </div>
+                  <span class="dc-lbl">DF Caos</span>
+                </div>
+                <div class="bar-group">
+                  <div class="bar-label-sm">Energía Caótica</div>
+                  <div class="bar-track caos-track">
+                    <div class="bar-fill caos-fill" style="width: {{pct system.defensas.energiaCaotica.value system.defensas.energiaCaotica.max}}%"></div>
+                    <div class="bar-overlay">
+                      <input type="number" name="system.defensas.energiaCaotica.value"
+                             value="{{system.defensas.energiaCaotica.value}}" min="0" class="bar-curr" />
+                      <span class="bar-sep">/</span>
+                      <span class="bar-max-static">{{system.defensas.energiaCaotica.max}}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="caos-formula-info" title="Caos puntos × 7">
+                  <span class="caos-formula-lbl">{{system.caracteristicas.caos.rank}}×7</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="acciones-block section-block">
+              <h3 class="col-title">Acciones</h3>
+              <div class="accion-row">
+                <span class="accion-stat">Fuerza <span class="accion-rank rank-chip rank-{{lowercase system.caracteristicas.fuerza.rank}}">{{system.caracteristicas.fuerza.rankDisplay}}</span></span>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="fuerza">Ataque</button>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="fuerza">Empujón</button>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="fuerza">Agarre</button>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="fuerza">Lanzar</button>
+                <button type="button" class="accion-btn accion-libre">Libre</button>
+              </div>
+              <div class="accion-row">
+                <span class="accion-stat">Técnica <span class="accion-rank rank-chip rank-{{lowercase system.caracteristicas.tecnica.rank}}">{{system.caracteristicas.tecnica.rankDisplay}}</span></span>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="tecnica">Ataque</button>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="tecnica">Art. marc.</button>
+                <button type="button" class="accion-btn roll-ataque" data-tipo="tecnica">Spindash</button>
+                <button type="button" class="accion-btn accion-libre">Espacio libre</button>
+              </div>
+            </div>
+
+            <!-- Reacciones + Caos Control -->
+            <div class="reacciones-caos-row">
+              <div class="reacciones-block section-block">
+                <h3 class="col-title">Reacciones</h3>
+                <div class="reac-entry">
+                  <span class="reac-stat">Ins <span class="reac-rank rank-chip rank-{{lowercase system.caracteristicas.instintos.rank}}">{{system.caracteristicas.instintos.rankDisplay}}</span></span>
+                  <button type="button" class="reac-btn roll-reaccion" data-tipo="esquivar">Esquivar</button>
+                </div>
+                <div class="reac-entry">
+                  <span class="reac-stat">Agu <span class="reac-rank rank-chip rank-{{lowercase system.caracteristicas.aguante.rank}}">{{system.caracteristicas.aguante.rankDisplay}}</span></span>
+                  <button type="button" class="reac-btn roll-reaccion" data-tipo="fortaleza">Fortaleza</button>
+                </div>
+                <div class="reac-entry">
+                  <span class="reac-stat">Cao <span class="reac-rank rank-chip rank-{{lowercase system.caracteristicas.caos.rank}}">{{system.caracteristicas.caos.rankDisplay}}</span></span>
+                  <button type="button" class="reac-btn roll-reaccion" data-tipo="resistencia">Resistencia</button>
+                </div>
+              </div>
+
+              <div class="caos-ctrl-block section-block">
+                <h3 class="col-title">✦ Caos Control</h3>
+                {{#if caosControlItems.length}}
+                  {{#each caosControlItems}}
+                  <div class="caos-entry" data-item-id="{{id}}">
+                    <button type="button" class="caos-btn roll-caos-item">{{name}}</button>
+                    <span class="caos-cost">{{system.costoCaos}}✦</span>
+                  </div>
+                  {{/each}}
+                {{else}}
+                  <p class="empty-hint"><i class="fas fa-info-circle"></i> Añade poderes en la pestaña Feats</p>
+                {{/if}}
+              </div>
+            </div>
+
+          </div><!-- end right-col -->
+        </div><!-- end main-columns -->
+
+        {{#if isChar}}
+        <section class="maestrias-section section-block">
+          <h3 class="col-title">Maestrías <span class="maestria-hint">(B+1 · A+2 · S+3 al mod vinculado)</span></h3>
+          <div class="maestrias-flex">
+            <div class="mgroup">
+              <div class="mgroup-lbl">Teóricas</div>
+              {{#each maestriasTeoricasList}}
+              <div class="maestria-row">
+                <button type="button" class="mrank-btn rank-{{lowercase rank}} maestria-roll"
+                        data-tipo="teoricas" data-slot="{{slotKey}}"
+                        title="Tirar{{#if nombre}} {{nombre}}{{/if}} (+{{rank}})">{{rank}}</button>
+                <input type="text" class="maestria-name"
+                       name="system.maestrias.teoricas.{{slotKey}}.nombre"
+                       value="{{nombre}}" placeholder="Nombre…" />
+                <select class="maestria-car-sel"
+                        name="system.maestrias.teoricas.{{slotKey}}.caracteristica">
+                  {{#each carOptions}}
+                  <option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                  {{/each}}
+                </select>
+              </div>
+              {{/each}}
+            </div>
+            <div class="mgroup">
+              <div class="mgroup-lbl">Prácticas</div>
+              {{#each maestriasPracticasList}}
+              <div class="maestria-row">
+                <button type="button" class="mrank-btn rank-{{lowercase rank}} maestria-roll"
+                        data-tipo="practicas" data-slot="{{slotKey}}"
+                        title="Tirar{{#if nombre}} {{nombre}}{{/if}} (+{{rank}})">{{rank}}</button>
+                <input type="text" class="maestria-name"
+                       name="system.maestrias.practicas.{{slotKey}}.nombre"
+                       value="{{nombre}}" placeholder="Nombre…" />
+                <select class="maestria-car-sel"
+                        name="system.maestrias.practicas.{{slotKey}}.caracteristica">
+                  {{#each carOptions}}
+                  <option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                  {{/each}}
+                </select>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+        </section>
+        {{/if}}
+
+      </div><!-- end tab principal -->
+
+      <!-- ── TAB: OBJETOS ── -->
+      <div class="tab objetos" data-group="primary" data-tab="objetos">
+
+        <div class="items-group">
+          <div class="igroup-header igroup-arma">
+            <span class="igroup-icon">⚔️</span><h3>Armas</h3>
+            <button type="button" class="item-create-btn item-create" data-cat="arma">+ Añadir</button>
+          </div>
+          <div class="items-list">
+            {{#each itemsArmas}}
+            <div class="item-entry-wrap" data-item-id="{{id}}">
+              <div class="item-entry cat-arma {{#if system.equipado}}equipado{{/if}}">
+                <img src="{{img}}" class="item-img item-expand-trigger" />
+                <span class="item-name item-expand-trigger">{{name}}</span>
+                {{#if system.dadoDanio}}<span class="item-damage-badge">{{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}</span>{{/if}}
+                {{#if system.bonusHit}}<span class="item-hit-badge">+{{system.bonusHit}} hit</span>{{/if}}
+                {{#if system.numAtaques}}<span class="item-hit-badge">{{system.numAtaques}} atq.</span>{{/if}}
+                {{#if system.usosPorDesc}}
+                <span class="item-uses item-uso-tick" title="Gastar uso">{{system.usosActuales}}/{{system.usosPorDesc}}</span>
+                {{/if}}
+                <div class="item-controls">
+
+                  <a class="item-equip-toggle" title="{{#if system.equipado}}Desequipar{{else}}Equipar{{/if}}">
+                    <i class="fas {{#if system.equipado}}fa-shield-alt equipped-icon{{else}}fa-circle{{/if}}"></i>
+                  </a>
+                  <a class="item-edit"><i class="fas fa-edit"></i></a>
+                  <a class="item-delete"><i class="fas fa-trash"></i></a>
+                </div>
+              </div>
+              <div class="item-expand">
+                <div class="ihc-chips">
+                  {{#if system.dadoDanio}}<span class="ihc-chip ihc-dmg">🗡 {{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}{{#if system.danioTipo}} · {{system.danioTipo}}{{/if}}</span>{{/if}}
+                  {{#if system.bonusHit}}<span class="ihc-chip ihc-hit">⊕ Hit +{{system.bonusHit}}</span>{{/if}}
+                  {{#if (gt system.numAtaques 1)}}<span class="ihc-chip ihc-hit">×{{system.numAtaques}} atq.</span>{{/if}}
+                  {{#if system.savingThrow}}<span class="ihc-chip ihc-save">🛡 {{system.savingThrow}} DC{{system.savingThrowDC}}</span>{{/if}}
+                  {{#if system.duracion}}<span class="ihc-chip ihc-dur">⏱ {{system.duracion}}</span>{{/if}}
+                  {{#if system.rango}}<span class="ihc-chip ihc-rng">📐 {{system.rango}} ft</span>{{/if}}
+                  {{#if system.usosPorDesc}}<span class="ihc-chip ihc-uses">🔄 {{system.usosActuales}}/{{system.usosPorDesc}}</span>{{/if}}
+                  {{#if system.bonusDf}}<span class="ihc-chip ihc-buf">DF +{{system.bonusDf}}</span>{{/if}}
+                  {{#if system.bonusAtaque}}<span class="ihc-chip ihc-buf">Atq. +{{system.bonusAtaque}}</span>{{/if}}
+                </div>
+                {{#if system.descripcion}}<div class="ihc-desc">{{{system.descripcion}}}</div>{{/if}}
+                <p class="ihc-cta">Clic en la fila → enviar al chat con tiradas</p>
+              </div>
+            </div>
+            {{else}}
+            <div class="item-entry-empty">Sin armas.</div>
+            {{/each}}
+          </div>
+        </div>
+
+        <div class="items-group">
+          <div class="igroup-header igroup-equipo">
+            <span class="igroup-icon">🎒</span><h3>Equipo & Armadura</h3>
+            <button type="button" class="item-create-btn item-create" data-cat="equipo">+ Añadir</button>
+          </div>
+          <div class="items-list">
+            {{#each itemsOtros}}
+            <div class="item-entry-wrap" data-item-id="{{id}}">
+              <div class="item-entry {{catClass system.categoria}} {{#if system.equipado}}equipado{{/if}}">
+                <img src="{{img}}" class="item-img item-expand-trigger" />
+                <span class="item-name item-expand-trigger">{{name}}</span>
+                <span class="item-cat-tag">{{system.categoria}}</span>
+                {{#if system.dadoDanio}}<span class="item-damage-badge">{{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}</span>{{/if}}
+                {{#if system.duracion}}<span class="item-dur-badge">⏱ {{system.duracion}}</span>{{/if}}
+                {{#if system.buffs.length}}<span class="item-buff-badge">✦{{system.buffs.length}}</span>{{/if}}
+                {{#if system.usosPorDesc}}
+                <span class="item-uses item-uso-tick" title="Gastar uso">{{system.usosActuales}}/{{system.usosPorDesc}}</span>
+                {{/if}}
+                <div class="item-controls">
+
+                  <a class="item-equip-toggle" title="{{#if system.equipado}}Desequipar{{else}}Equipar{{/if}}">
+                    <i class="fas {{#if system.equipado}}fa-shield-alt equipped-icon{{else}}fa-circle{{/if}}"></i>
+                  </a>
+                  <a class="item-edit"><i class="fas fa-edit"></i></a>
+                  <a class="item-delete"><i class="fas fa-trash"></i></a>
+                </div>
+              </div>
+              <div class="item-expand">
+                <div class="ihc-chips">
+                  {{#if system.dadoDanio}}<span class="ihc-chip ihc-dmg">🗡 {{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}{{#if system.danioTipo}} · {{system.danioTipo}}{{/if}}</span>{{/if}}
+                  {{#if system.bonusHit}}<span class="ihc-chip ihc-hit">⊕ Hit +{{system.bonusHit}}</span>{{/if}}
+                  {{#if system.secciones.caosControl}}<span class="ihc-chip ihc-caos">✦ {{system.costoCaos}} EC{{#if system.esReaccion}} · ⚡ Reac.{{/if}}</span>{{/if}}
+                  {{#if system.savingThrow}}<span class="ihc-chip ihc-save">🛡 {{system.savingThrow}} DC{{system.savingThrowDC}}</span>{{/if}}
+                  {{#if system.duracion}}<span class="ihc-chip ihc-dur">⏱ {{system.duracion}}</span>{{/if}}
+                  {{#if system.rango}}<span class="ihc-chip ihc-rng">📐 {{system.rango}} ft</span>{{/if}}
+                  {{#if system.usosPorDesc}}<span class="ihc-chip ihc-uses">🔄 {{system.usosActuales}}/{{system.usosPorDesc}}</span>{{/if}}
+                  {{#if system.bonusDf}}<span class="ihc-chip ihc-buf">DF +{{system.bonusDf}}</span>{{/if}}
+                  {{#if system.bonusReaccion}}<span class="ihc-chip ihc-buf">Reac. +{{system.bonusReaccion}}</span>{{/if}}
+                  {{#if system.bonusAtaque}}<span class="ihc-chip ihc-buf">Atq. +{{system.bonusAtaque}}</span>{{/if}}
+                  {{#if system.slots}}<span class="ihc-chip ihc-buf">+{{system.slots}} slots</span>{{/if}}
+                  {{#if system.claseReq}}<span class="ihc-chip ihc-feat">⭐ {{system.claseReq}}</span>{{/if}}
+                  {{#if (gt system.nivelReq 1)}}<span class="ihc-chip ihc-feat">Nv.{{system.nivelReq}}</span>{{/if}}
+                </div>
+                {{#if system.descripcion}}<div class="ihc-desc">{{{system.descripcion}}}</div>{{/if}}
+                <p class="ihc-cta">Clic en la fila → enviar al chat con tiradas</p>
+              </div>
+            </div>
+            {{else}}
+            <div class="item-entry-empty">Sin equipo.</div>
+            {{/each}}
+          </div>
+        </div>
+
+        <div class="items-group">
+          <div class="igroup-header igroup-tarjeta">
+            <span class="igroup-icon">🃏</span><h3>Tarjetas</h3>
+            <button type="button" class="item-create-btn item-create" data-cat="tarjeta">+ Añadir</button>
+          </div>
+          <div class="items-list">
+            {{#each itemsTarjetas}}
+            <div class="item-entry-wrap" data-item-id="{{id}}">
+              <div class="item-entry cat-tarjeta {{#if system.equipado}}equipado{{/if}}">
+                <img src="{{img}}" class="item-img item-expand-trigger" />
+                <span class="item-name item-expand-trigger">{{name}}</span>
+                <div class="item-controls">
+
+                  <a class="item-edit"><i class="fas fa-edit"></i></a>
+                  <a class="item-delete"><i class="fas fa-trash"></i></a>
+                </div>
+              </div>
+              <div class="item-expand">
+                <div class="ihc-chips">
+                  {{#if system.usosPorDesc}}<span class="ihc-chip ihc-uses">🔄 {{system.usosActuales}}/{{system.usosPorDesc}}</span>{{/if}}
+                  {{#if system.duracion}}<span class="ihc-chip ihc-dur">⏱ {{system.duracion}}</span>{{/if}}
+                </div>
+                {{#if system.descripcion}}<div class="ihc-desc">{{{system.descripcion}}}</div>{{/if}}
+                <p class="ihc-cta">Clic en la fila → enviar al chat</p>
+              </div>
+            </div>
+            {{else}}
+            <div class="item-entry-empty">Sin tarjetas.</div>
+            {{/each}}
+          </div>
+        </div>
+
+      </div><!-- end tab objetos -->
+
+      <!-- ── TAB: FEATS ── -->
+      <div class="tab feats" data-group="primary" data-tab="feats">
+
+        <div class="items-group">
+          <div class="igroup-header igroup-caos">
+            <span class="igroup-icon">✦</span><h3>Caos Control</h3>
+            <button type="button" class="item-create-btn item-create" data-cat="caos">+ Añadir</button>
+          </div>
+          <div class="items-list">
+            {{#each itemsCaos}}
+            <div class="item-entry-wrap" data-item-id="{{id}}">
+              <div class="item-entry cat-caos {{#if system.equipado}}equipado{{/if}}">
+                <img src="{{img}}" class="item-img item-expand-trigger" />
+                <span class="item-name item-expand-trigger">{{name}}</span>
+                <span class="item-caos-cost">{{system.costoCaos}}✦</span>
+                {{#if system.dadoDanio}}<span class="item-damage-badge">{{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}</span>{{/if}}
+                {{#if system.duracion}}<span class="item-dur-badge">⏱ {{system.duracion}}</span>{{/if}}
+                {{#if system.usosPorDesc}}
+                <span class="item-uses item-uso-tick" title="Gastar uso">{{system.usosActuales}}/{{system.usosPorDesc}}</span>
+                {{/if}}
+                <div class="item-controls">
+
+                  <a class="item-equip-toggle" title="{{#if system.equipado}}Desactivar buffs{{else}}Activar buffs{{/if}}">
+                    <i class="fas {{#if system.equipado}}fa-bolt equipped-icon{{else}}fa-circle{{/if}}"></i>
+                  </a>
+                  <a class="item-edit"><i class="fas fa-edit"></i></a>
+                  <a class="item-delete"><i class="fas fa-trash"></i></a>
+                </div>
+              </div>
+              <div class="item-expand">
+                <div class="ihc-chips">
+                  <span class="ihc-chip ihc-caos">✦ {{system.costoCaos}} EC{{#if system.esReaccion}} · ⚡ Reacción{{/if}}</span>
+                  {{#if system.dadoDanio}}<span class="ihc-chip ihc-dmg">🗡 {{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}{{#if system.danioTipo}} · {{system.danioTipo}}{{/if}}</span>{{/if}}
+                  {{#if system.savingThrow}}<span class="ihc-chip ihc-save">🛡 {{system.savingThrow}} DC{{system.savingThrowDC}}</span>{{/if}}
+                  {{#if system.duracion}}<span class="ihc-chip ihc-dur">⏱ {{system.duracion}}</span>{{/if}}
+                  {{#if system.rango}}<span class="ihc-chip ihc-rng">📐 {{system.rango}} ft</span>{{/if}}
+                  {{#if system.usosPorDesc}}<span class="ihc-chip ihc-uses">🔄 {{system.usosActuales}}/{{system.usosPorDesc}}</span>{{/if}}
+                </div>
+                {{#if system.descripcion}}<div class="ihc-desc">{{{system.descripcion}}}</div>{{/if}}
+                <p class="ihc-cta">Clic en la fila → enviar al chat (descuenta EC)</p>
+              </div>
+            </div>
+            {{else}}
+            <div class="item-entry-empty">Sin poderes de caos.</div>
+            {{/each}}
+          </div>
+        </div>
+
+        <div class="items-group">
+          <div class="igroup-header igroup-feat">
+            <span class="igroup-icon">⭐</span><h3>Feats de Clase</h3>
+            <button type="button" class="item-create-btn item-create" data-cat="feat">+ Añadir</button>
+          </div>
+          <div class="items-list">
+            {{#each itemsFeats}}
+            <div class="item-entry-wrap" data-item-id="{{id}}">
+              <div class="item-entry cat-feat {{#if system.equipado}}equipado{{/if}}">
+                <img src="{{img}}" class="item-img item-expand-trigger" />
+                <span class="item-name item-expand-trigger">{{name}}</span>
+                <span class="item-feat-meta">Nv.{{system.nivelReq}}{{#if system.claseReq}} · {{system.claseReq}}{{/if}}</span>
+                {{#if system.dadoDanio}}<span class="item-damage-badge">{{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}</span>{{/if}}
+                {{#if system.duracion}}<span class="item-dur-badge">⏱ {{system.duracion}}</span>{{/if}}
+                {{#if system.buffs.length}}<span class="item-buff-badge">✦{{system.buffs.length}} buffs</span>{{/if}}
+                {{#if system.usosPorDesc}}
+                <span class="item-uses item-uso-tick" title="Gastar uso">{{system.usosActuales}}/{{system.usosPorDesc}}</span>
+                {{/if}}
+                <div class="item-controls">
+
+                  <a class="item-equip-toggle" title="{{#if system.equipado}}Desactivar{{else}}Activar feat{{/if}}">
+                    <i class="fas {{#if system.equipado}}fa-star equipped-icon{{else}}fa-circle{{/if}}"></i>
+                  </a>
+                  <a class="item-edit"><i class="fas fa-edit"></i></a>
+                  <a class="item-delete"><i class="fas fa-trash"></i></a>
+                </div>
+              </div>
+              <div class="item-expand">
+                <div class="ihc-chips">
+                  {{#if system.dadoDanio}}<span class="ihc-chip ihc-dmg">🗡 {{system.dadoDanio}}{{#if system.bonusDanio}}+{{system.bonusDanio}}{{/if}}{{#if system.danioTipo}} · {{system.danioTipo}}{{/if}}</span>{{/if}}
+                  {{#if system.bonusHit}}<span class="ihc-chip ihc-hit">⊕ Hit +{{system.bonusHit}}</span>{{/if}}
+                  {{#if system.savingThrow}}<span class="ihc-chip ihc-save">🛡 {{system.savingThrow}} DC{{system.savingThrowDC}}</span>{{/if}}
+                  {{#if system.duracion}}<span class="ihc-chip ihc-dur">⏱ {{system.duracion}}</span>{{/if}}
+                  {{#if system.usosPorDesc}}<span class="ihc-chip ihc-uses">🔄 {{system.usosActuales}}/{{system.usosPorDesc}}</span>{{/if}}
+                  {{#if system.bonusDf}}<span class="ihc-chip ihc-buf">DF +{{system.bonusDf}}</span>{{/if}}
+                  {{#if system.bonusReaccion}}<span class="ihc-chip ihc-buf">Reac. +{{system.bonusReaccion}}</span>{{/if}}
+                  {{#if system.bonusAtaque}}<span class="ihc-chip ihc-buf">Atq. +{{system.bonusAtaque}}</span>{{/if}}
+                  {{#if system.slots}}<span class="ihc-chip ihc-buf">+{{system.slots}} slots</span>{{/if}}
+                  {{#if system.claseReq}}<span class="ihc-chip ihc-feat">⭐ {{system.claseReq}}</span>{{/if}}
+                  {{#if (gt system.nivelReq 1)}}<span class="ihc-chip ihc-feat">Nv.{{system.nivelReq}}</span>{{/if}}
+                </div>
+                {{#if system.descripcion}}<div class="ihc-desc">{{{system.descripcion}}}</div>{{/if}}
+                <p class="ihc-cta">Clic en la fila → enviar al chat con tiradas</p>
+              </div>
+            </div>
+            {{else}}
+            <div class="item-entry-empty">Sin feats.</div>
+            {{/each}}
+          </div>
+        </div>
+
+      </div><!-- end tab feats -->
+
+      <!-- ── TAB: BIOGRAFÍA ── -->
+      <div class="tab bio" data-group="primary" data-tab="bio">
+        <div class="bio-content">
+
+          <div class="stats-display-section">
+            <h3 class="col-title">Resumen de características</h3>
+            <div class="stats-display-grid">
+              {{#each caracteristicasList}}
+              <div class="stat-disp-cell rank-{{lowercase rank}}">
+                <div class="stat-disp-rank">{{rankDisplay}}</div>
+                <div class="stat-disp-mod">{{signedNum modificador}}</div>
+                <div class="stat-disp-lbl">{{label}}</div>
+              </div>
+              {{/each}}
+              <div class="stat-disp-cell rank-{{lowercase caos.rank}}">
+                <div class="stat-disp-rank">{{caos.rankDisplay}}</div>
+                <div class="stat-disp-mod">{{signedNum caos.modificador}}</div>
+                <div class="stat-disp-lbl">Caos</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bio-editor-wrap">
+            <h3 class="col-title">Biografía / Notas</h3>
+            {{editor system.bio target="system.bio" button=true owner=owner editable=editable}}
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+  </div>
+
+</form>

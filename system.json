@@ -1,0 +1,36 @@
+{
+  "id": "forces",
+  "title": "Forces",
+  "description": "Sistema de rol Forces – basado en el universo de Sonic Forces, creado por Makota. Incluye características por rango (F→S), habilidades, maestrías, Caos Control, fichas de personaje y NPC, y sistema de objetos con buffs.",
+  "version": "0.2.0",
+  "compatibility": {
+    "minimum": "11",
+    "verified": "12",
+    "maximum": "13"
+  },
+  "authors": [
+    { "name": "Makota", "discord": "" },
+    { "name": "nispeter2", "url": "https://github.com/nispeter2" }
+  ],
+  "esmodules": ["forces.mjs"],
+  "styles": ["styles/forces.css"],
+  "languages": [
+    { "lang": "es", "name": "Español", "path": "lang/es.json" },
+    { "lang": "en", "name": "English", "path": "lang/es.json" }
+  ],
+  "documentTypes": {
+    "Actor": { "character": {}, "npc": {} },
+    "Item":  { "item": {} }
+  },
+  "socket": false,
+  "initiative": "1d20",
+  "grid": { "distance": 5, "units": "ft" },
+  "primaryTokenAttribute":   "defensas.vida",
+  "secondaryTokenAttribute": "defensas.energiaCaotica",
+  "manifest": "https://github.com/nispeter2/forces/releases/latest/download/system.json",
+  "download":  "https://github.com/nispeter2/forces/releases/latest/download/forces.zip",
+  "url":       "https://github.com/nispeter2/forces",
+  "bugs":      "https://github.com/nispeter2/forces/issues",
+  "readme":    "https://github.com/nispeter2/forces#readme",
+  "changelog": "https://github.com/nispeter2/forces/blob/main/CHANGELOG.md"
+}

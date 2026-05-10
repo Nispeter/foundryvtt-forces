@@ -1,0 +1,294 @@
+<form class="{{cssClass}} forces sheet item" autocomplete="off">
+
+  <!-- ═══ HEADER: image · name · category · equipped ═══ -->
+  <header class="item-header">
+    <img class="item-img" src="{{item.img}}" data-edit="img" title="{{item.name}}" />
+    <div class="item-header-body">
+      <input class="item-name-input" type="text" name="name" value="{{item.name}}" placeholder="Nombre del ítem…" />
+      <div class="item-header-controls">
+        <select name="system.categoria" class="item-cat-sel">
+          {{#each categorias}}
+          <option value="{{value}}" {{#if (eq value ../system.categoria)}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+        <label class="equip-label">
+          <input type="checkbox" name="system.equipado" {{#if system.equipado}}checked{{/if}} />
+          Equipado
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ ACTIVE SECTIONS ═══ -->
+  <div class="item-sections-body">
+
+    {{#if secciones.danioEfecto}}
+    <div class="item-section" data-sec-key="danioEfecto">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">🗡 Daño / Efecto</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          Dado
+          <input type="text" name="system.dadoDanio" value="{{system.dadoDanio}}"
+                 placeholder="1d8, 2d6…" class="sec-text-sm" />
+        </label>
+        <label class="sec-lbl">
+          Bonus
+          <input type="number" name="system.bonusDanio" value="{{system.bonusDanio}}" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl sec-grow">
+          Tipo de daño
+          <input type="text" name="system.danioTipo" value="{{system.danioTipo}}"
+                 placeholder="cortante, caótico…" />
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.hit}}
+    <div class="item-section" data-sec-key="hit">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">⊕ Hit / Ataque</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          Bonus hit
+          <input type="number" name="system.bonusHit" value="{{system.bonusHit}}" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl">
+          Nº ataques
+          <input type="number" name="system.numAtaques" value="{{system.numAtaques}}" min="1" class="sec-num-sm" />
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.caosControl}}
+    <div class="item-section" data-sec-key="caosControl">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">✦ Caos Control</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          Coste EC
+          <input type="number" name="system.costoCaos" value="{{system.costoCaos}}" min="0" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl sec-check">
+          <input type="checkbox" name="system.esReaccion" {{#if system.esReaccion}}checked{{/if}} />
+          ⚡ Es reacción
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.savingThrow}}
+    <div class="item-section" data-sec-key="savingThrow">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">🛡 Saving Throw</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          Atributo
+          <select name="system.savingThrowStat" class="sec-stat-sel">
+            <option value="fuerza"    {{#if (eq system.savingThrowStat "fuerza")}}selected{{/if}}>Fuerza</option>
+            <option value="aguante"   {{#if (eq system.savingThrowStat "aguante")}}selected{{/if}}>Aguante</option>
+            <option value="velocidad" {{#if (eq system.savingThrowStat "velocidad")}}selected{{/if}}>Velocidad</option>
+            <option value="tecnica"   {{#if (eq system.savingThrowStat "tecnica")}}selected{{/if}}>Técnica</option>
+            <option value="cognicion" {{#if (eq system.savingThrowStat "cognicion")}}selected{{/if}}>Cognición</option>
+            <option value="carisma"   {{#if (eq system.savingThrowStat "carisma")}}selected{{/if}}>Carisma</option>
+            <option value="instintos" {{#if (eq system.savingThrowStat "instintos")}}selected{{/if}}>Instintos</option>
+            <option value="caos"      {{#if (eq system.savingThrowStat "caos")}}selected{{/if}}>Caos</option>
+          </select>
+        </label>
+        <label class="sec-lbl sec-grow">
+          Etiqueta
+          <input type="text" name="system.savingThrow" value="{{system.savingThrow}}"
+                 placeholder="Esquivar · Resistencia…" />
+        </label>
+        <label class="sec-lbl">
+          DC
+          <input type="number" name="system.savingThrowDC" value="{{system.savingThrowDC}}" class="sec-num-sm" />
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.bonEstadistica}}
+    <div class="item-section" data-sec-key="bonEstadistica">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">📊 Bonif. Estadísticos</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          DF Corp.
+          <input type="number" name="system.bonusDf" value="{{system.bonusDf}}" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl">
+          Reacción
+          <input type="number" name="system.bonusReaccion" value="{{system.bonusReaccion}}" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl">
+          Ataque
+          <input type="number" name="system.bonusAtaque" value="{{system.bonusAtaque}}" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl">
+          Slots
+          <input type="number" name="system.slots" value="{{system.slots}}" min="0" class="sec-num-sm" />
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.featClase}}
+    <div class="item-section" data-sec-key="featClase">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">⭐ Feat / Clase</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          Nivel req.
+          <input type="number" name="system.nivelReq" value="{{system.nivelReq}}" min="1" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl sec-grow">
+          Clase req.
+          <input type="text" name="system.claseReq" value="{{system.claseReq}}" placeholder="Hacker, Berserker…" />
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.duracion}}
+    <div class="item-section" data-sec-key="duracion">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">⏱ Duración</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-inline">
+        <input type="text" name="system.duracion" value="{{system.duracion}}"
+               placeholder="1 ronda · 10 min · Concentración · Permanente…" class="sec-text-full" />
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.rango}}
+    <div class="item-section" data-sec-key="rango">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">📐 Rango</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-inline">
+        <input type="number" name="system.rango" value="{{system.rango}}" min="0" class="sec-num-sm" />
+        <span class="sec-unit">ft</span>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.usos}}
+    <div class="item-section" data-sec-key="usos">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">🔄 Usos por descanso</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-usos-row">
+        <span class="sec-lbl-inline">Máx.</span>
+        <input type="number" name="system.usosPorDesc" value="{{system.usosPorDesc}}" min="0" class="sec-num-sm" />
+        <span class="sec-lbl-inline">Actual</span>
+        <input type="number" name="system.usosActuales" value="{{system.usosActuales}}" min="0" class="sec-num-sm" />
+        <button type="button" class="uso-tick sec-uso-btn">+1</button>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.buffs}}
+    <div class="item-section" data-sec-key="buffs">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">↑ Buffs al equipar</span>
+        <button type="button" class="buff-add sec-action-btn" title="Añadir buff">+</button>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body">
+        <div class="buff-help">Objetivo → + valor fijo + estadística × multiplicador</div>
+        {{#each buffRows}}
+        <div class="buff-row" data-idx="{{idx}}">
+          <select class="buff-field buff-target" data-field="target">
+            {{#each targetOptions}}
+            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+          <span class="buff-op">+</span>
+          <input type="number" class="buff-field buff-base" data-field="baseVal" value="{{baseVal}}" placeholder="0" />
+          <select class="buff-field buff-scale-var" data-field="scaleVar">
+            {{#each scaleVarOptions}}
+            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+          {{#if showMult}}
+          <span class="buff-op">×</span>
+          <input type="number" class="buff-field buff-scale-mult" data-field="scaleMult" value="{{scaleMult}}" />
+          {{/if}}
+          <label class="buff-activo" title="Activo al equipar">
+            <input type="checkbox" class="buff-field" data-field="activo" {{#if activo}}checked{{/if}} />
+          </label>
+          <button type="button" class="buff-remove" data-idx="{{idx}}" title="Eliminar">×</button>
+        </div>
+        {{/each}}
+        {{#unless buffRows.length}}
+        <p class="empty-hint">Sin buffs. Pulsa "+" para añadir.</p>
+        {{/unless}}
+      </div>
+    </div>
+    {{/if}}
+
+    <!-- Descripción always last -->
+    {{#if secciones.descripcion}}
+    <div class="item-section" data-sec-key="descripcion">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">📝 Descripción</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-editor">
+        {{editor system.descripcion target="system.descripcion" button=true owner=owner editable=editable}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{#unless seccionesActivas.length}}
+    <div class="sec-empty-state">
+      <p>Usa el botón "＋ Sección" para añadir contenido.</p>
+    </div>
+    {{/unless}}
+
+  </div>
+
+  <!-- ═══ ADD SECTION FOOTER ═══ -->
+  {{#if seccionesDisp.length}}
+  <div class="sec-add-footer">
+    <button type="button" class="sec-add-toggle">＋</button>
+    <span class="sec-add-label">Añadir sección</span>
+    <div class="sec-add-list">
+      {{#each seccionesDisp}}
+      <button type="button" class="sec-add-btn" data-key="{{key}}">{{label}}</button>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+</form>
