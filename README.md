@@ -11,12 +11,12 @@
 1. Abre FoundryVTT → **Configuración** → **Sistemas** → **Instalar sistema**
 2. Pega la URL del manifiesto:
    ```
-   https://github.com/nispeter2/forces/releases/latest/download/system.json
+   https://github.com/Nispeter/foundryvtt-forces/releases/latest/download/system.json
    ```
 3. Haz clic en **Instalar**.
 
 ### Manual
-Descarga el archivo `forces.zip` desde la [última release](https://github.com/nispeter2/forces/releases/latest) y extráelo en:
+Descarga el archivo `forces.zip` desde la [última release](https://github.com/Nispeter/foundryvtt-forces/releases/latest) y extráelo en:
 ```
 <FoundryVTT Data>/systems/forces/
 ```
@@ -104,7 +104,7 @@ Pasa el cursor sobre cualquier objeto en la ficha para ver un resumen flotante c
 
 ## Reportar problemas
 
-Abre un [issue en GitHub](https://github.com/nispeter2/forces/issues) con una descripción del problema y los pasos para reproducirlo.
+Abre un [issue en GitHub](https://github.com/Nispeter/foundryvtt-forces/issues) con una descripción del problema y los pasos para reproducirlo.
 
 ---
 

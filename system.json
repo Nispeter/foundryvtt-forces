@@ -27,10 +27,10 @@
   "grid": { "distance": 5, "units": "ft" },
   "primaryTokenAttribute":   "defensas.vida",
   "secondaryTokenAttribute": "defensas.energiaCaotica",
-  "manifest": "https://github.com/nispeter2/forces/releases/latest/download/system.json",
-  "download":  "https://github.com/nispeter2/forces/releases/latest/download/forces.zip",
-  "url":       "https://github.com/nispeter2/forces",
-  "bugs":      "https://github.com/nispeter2/forces/issues",
-  "readme":    "https://github.com/nispeter2/forces#readme",
-  "changelog": "https://github.com/nispeter2/forces/blob/main/CHANGELOG.md"
+  "manifest": "https://raw.githubusercontent.com/Nispeter/foundryvtt-forces/main/system.json",
+  "download":  "https://github.com/Nispeter/foundryvtt-forces/releases/latest/download/forces.zip",
+  "url":       "https://github.com/Nispeter/foundryvtt-forces",
+  "bugs":      "https://github.com/Nispeter/foundryvtt-forces/issues",
+  "readme":    "https://github.com/Nispeter/foundryvtt-forces#readme",
+  "changelog": "https://github.com/Nispeter/foundryvtt-forces/blob/main/CHANGELOG.md"
 }
