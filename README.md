@@ -11,7 +11,7 @@
 1. Abre FoundryVTT → **Configuración** → **Sistemas** → **Instalar sistema**
 2. Pega la URL del manifiesto:
    ```
-   https://github.com/Nispeter/foundryvtt-forces/releases/latest/download/system.json
+   https://raw.githubusercontent.com/Nispeter/foundryvtt-forces/main/system.json
    ```
 3. Haz clic en **Instalar**.
 
