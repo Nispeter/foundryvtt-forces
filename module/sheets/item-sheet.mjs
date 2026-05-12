@@ -19,7 +19,7 @@ export class ForcesItemSheet extends ItemSheet {
       classes:   ["forces", "sheet", "item"],
       template:  "systems/forces/templates/item/item-sheet.hbs",
       width:     520,
-      height:    540,
+      height:    560,
       resizable: true,
       scrollY:   [".item-sections-body"],
     });
@@ -30,7 +30,7 @@ export class ForcesItemSheet extends ItemSheet {
     const sys = this.item.system;
     ctx.system = sys;
 
-    // Compute effective secciones: stored flags take priority; auto-detect only when not explicitly false
+    // Effective sections: stored flags OR auto-detect legacy data
     const stored = sys.secciones ?? {};
     const sec = { ...stored };
     if (stored.descripcion    !== false && sys.descripcion)                                    sec.descripcion    = true;
@@ -44,10 +44,13 @@ export class ForcesItemSheet extends ItemSheet {
     if (stored.buffs          !== false && (sys.buffs ?? []).length > 0)                       sec.buffs          = true;
     if (stored.bonEstadistica !== false && (sys.bonusDf || sys.bonusReaccion || sys.bonusAtaque || sys.slots)) sec.bonEstadistica = true;
     if (stored.savingThrow    !== false && sys.savingThrow)                                    sec.savingThrow    = true;
+    if (stored.dadoLibre      !== false && (sys.dadoLibreFormula || sys.dadoLibreTabla))        sec.dadoLibre      = true;
+    if (stored.areaEfecto     !== false && sys.areaEfecto)                                     sec.areaEfecto     = true;
 
     ctx.secciones         = sec;
     ctx.seccionesActivas  = ALL_SECTIONS.filter(s => sec[s.key]);
-    ctx.seccionesDisp     = ALL_SECTIONS.filter(s => !sec[s.key]);
+    // allSectionsToggle drives the toggle-slider panel
+    ctx.allSectionsToggle = ALL_SECTIONS.map(s => ({ ...s, active: !!sec[s.key] }));
 
     ctx.buffRows = (sys.buffs ?? []).map((b, idx) => ({
       ...b, idx,
@@ -55,6 +58,9 @@ export class ForcesItemSheet extends ItemSheet {
       scaleVarOptions: SCALE_VARS.map(v => ({ ...v, selected: (b.scaleVar || "none") === v.value })),
       showMult: (b.scaleVar || "none") !== "none",
     }));
+
+    const tablaEntradas = (sys.dadoLibreEntradas ?? "").split("\n").filter(e => e.trim());
+    ctx.dadoLibreNumEntradas = tablaEntradas.length;
 
     ctx.categorias = [
       { value: "arma",       label: "Arma" },
@@ -72,7 +78,7 @@ export class ForcesItemSheet extends ItemSheet {
   activateListeners(html) {
     super.activateListeners(html);
 
-    // Per-section collapse toggle (button or title click)
+    // Per-section collapse toggle
     const _toggleSection = el => {
       const sec = el.closest(".item-section");
       const btn = sec.querySelector(".sec-collapse-btn");
@@ -82,7 +88,7 @@ export class ForcesItemSheet extends ItemSheet {
     html.find(".sec-collapse-btn").click(ev => _toggleSection(ev.currentTarget));
     html.find(".sec-header .sec-title").click(ev => _toggleSection(ev.currentTarget));
 
-    // Explicitly set buff select values — workaround for browser/Foundry re-render quirk
+    // Fix buff select values after render
     const storedBuffs = this.item.system.buffs ?? [];
     html.find(".buff-row").each((_i, row) => {
       const buff = storedBuffs[parseInt(row.dataset.idx)];
@@ -93,32 +99,69 @@ export class ForcesItemSheet extends ItemSheet {
       if (scv) scv.value = buff.scaleVar || "none";
     });
 
-    // Bottom "add section" toggle
-    html.find(".sec-add-toggle").click(ev => {
-      ev.currentTarget.closest(".sec-add-footer").classList.toggle("open");
-    });
-
     if (!this.isEditable) return;
 
-    // Add section
-    html.find(".sec-add-btn").click(ev => {
-      const key = ev.currentTarget.dataset.key;
-      this.item.update({ [`system.secciones.${key}`]: true });
+    // Sections popup — floating overlay window
+    html.find(".sec-add-toggle").click(ev => {
+      ev.stopPropagation();
+      const btn  = ev.currentTarget;
+      const list = html.find(".sec-add-list")[0];
+      if (!list) return;
+
+      if (list._forcesOpen) {
+        list.style.display = "none";
+        list._forcesOpen = false;
+        return;
+      }
+
+      const rect = btn.getBoundingClientRect();
+      Object.assign(list.style, {
+        display:  "flex",
+        position: "fixed",
+        bottom:   `${window.innerHeight - rect.top + 8}px`,
+        left:     `${Math.max(8, rect.left - 4)}px`,
+        right:    "auto",
+        width:    "320px",
+        maxHeight:"220px",
+        zIndex:   "20000",
+      });
+      list._forcesOpen = true;
+
+      const close = (e) => {
+        if (!list.contains(e.target) && e.target !== btn) {
+          list.style.display = "none";
+          list._forcesOpen = false;
+          document.removeEventListener("pointerdown", close, true);
+          document.removeEventListener("keydown", onEsc);
+        }
+      };
+      const onEsc = (e) => {
+        if (e.key !== "Escape") return;
+        list.style.display = "none";
+        list._forcesOpen = false;
+        document.removeEventListener("pointerdown", close, true);
+        document.removeEventListener("keydown", onEsc);
+      };
+      document.addEventListener("pointerdown", close, true);
+      document.addEventListener("keydown", onEsc);
     });
 
-    // Remove section
+    // Section pill buttons — toggle active state
+    html.find(".sec-add-btn").click(ev => {
+      const key    = ev.currentTarget.dataset.key;
+      const active = ev.currentTarget.classList.contains("sec-btn-active");
+      this.item.update({ [`system.secciones.${key}`]: !active });
+    });
+
+    // × remove button inside each section header
     html.find(".sec-remove").click(ev => {
       const key = ev.currentTarget.closest(".item-section").dataset.secKey;
       this.item.update({ [`system.secciones.${key}`]: false });
     });
 
-    // Buff add
     html.find(".buff-add").click(this._onBuffAdd.bind(this));
-
-    // Buff remove
     html.find(".buff-remove").click(this._onBuffRemove.bind(this));
 
-    // Buff field changes — bypass form submission to avoid array→object bug
     html.find(".buff-field").on("change", ev => {
       const row   = ev.currentTarget.closest(".buff-row");
       const idx   = parseInt(row.dataset.idx);
@@ -133,7 +176,6 @@ export class ForcesItemSheet extends ItemSheet {
       this.item.update({ "system.buffs": buffs });
     });
 
-    // Uses tick
     html.find(".uso-tick").click(this._onUsoTick.bind(this));
   }
 

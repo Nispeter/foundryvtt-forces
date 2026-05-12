@@ -7,6 +7,8 @@ import { ForcesItemSheet } from "./module/sheets/item-sheet.mjs";
 /* ─── Handlebars helpers ─── */
 Handlebars.registerHelper("signedNum", n => { const v = Number(n)||0; return v >= 0 ? `+${v}` : `${v}`; });
 Handlebars.registerHelper("lowercase", s => (s ?? "").toLowerCase());
+// rankClass: converts rank string to a safe CSS class name (S+ → splus)
+Handlebars.registerHelper("rankClass", r => (r ?? "f").toLowerCase().replace("+", "plus"));
 Handlebars.registerHelper("eq",  (a, b) => a === b);
 Handlebars.registerHelper("neq", (a, b) => a !== b);
 Handlebars.registerHelper("lte", (a, b) => a <= b);
@@ -62,7 +64,19 @@ Hooks.once("init", () => {
   ]);
 });
 
-Hooks.once("ready", () => console.log("Forces | Ready. ¡Fuck it, we ball!"));
+Hooks.once("ready", () => {
+  console.log("Forces | Ready. ¡Fuck it, we ball!");
+
+  // Track canvas-space mouse position so chat buttons can place templates instantly
+  document.getElementById("board")?.addEventListener("mousemove", ev => {
+    const t = canvas?.stage?.worldTransform;
+    if (!t) return;
+    window._forcesCanvasPos = {
+      x: (ev.clientX - t.tx) / t.a,
+      y: (ev.clientY - t.ty) / t.d,
+    };
+  });
+});
 
 /* ─── Chat card roll buttons ─── */
 Hooks.on("renderChatMessage", (_msg, html) => {
@@ -126,6 +140,173 @@ Hooks.on("renderChatMessage", (_msg, html) => {
       speaker: ChatMessage.getSpeaker({ actor }),
       flavor:  `<strong>${item.name}</strong> — Caos Control mod ${mod >= 0 ? "+" : ""}${mod}${modeTag}`,
     });
+  });
+
+  html.find("[data-action='roll-dado-libre']").click(async ev => {
+    const btn     = ev.currentTarget;
+    const formula = btn.dataset.formula;
+    const label   = btn.dataset.label || "Tirada libre";
+    if (!formula) return;
+    const opts = await rollDialog(label);
+    if (!opts) return;
+    const bonus = opts.bonus ? (opts.bonus >= 0 ? `+${opts.bonus}` : `${opts.bonus}`) : "";
+    const full  = `${formula}${bonus}`;
+    let roll;
+    if (opts.mode === "normal") {
+      roll = new Roll(full); await roll.evaluate();
+    } else {
+      const r1 = new Roll(full), r2 = new Roll(full);
+      await r1.evaluate(); await r2.evaluate();
+      roll = opts.mode === "adv" ? (r1.total >= r2.total ? r1 : r2) : (r1.total <= r2.total ? r1 : r2);
+    }
+    const modeTag = opts.mode === "adv" ? " [Ventaja]" : opts.mode === "dis" ? " [Desventaja]" : "";
+    await roll.toMessage({
+      flavor: `<strong>${label}</strong>${modeTag}`,
+    });
+  });
+
+  html.find("[data-action='roll-tabla']").click(async ev => {
+    const btn   = ev.currentTarget;
+    const actor = game.actors.get(btn.dataset.actorId);
+    const item  = actor?.items.get(btn.dataset.itemId);
+    if (!actor || !item) return;
+    const entries = (item.system.dadoLibreEntradas ?? "").split("\n").filter(e => e.trim());
+    if (!entries.length) return;
+    const label = item.system.dadoLibreLabel || "Tabla";
+    const n     = entries.length;
+    const opts  = await rollDialog(`${label} (1d${n})`);
+    if (!opts) return;
+    const formula = `1d${n}`;
+    let roll;
+    if (opts.mode === "normal") {
+      roll = new Roll(formula); await roll.evaluate();
+    } else {
+      const r1 = new Roll(formula), r2 = new Roll(formula);
+      await r1.evaluate(); await r2.evaluate();
+      roll = opts.mode === "adv" ? (r1.total >= r2.total ? r1 : r2) : (r1.total <= r2.total ? r1 : r2);
+    }
+    const idx     = Math.max(0, Math.min(n - 1, roll.total - 1));
+    const result  = entries[idx];
+    const modeTag = opts.mode === "adv" ? " [Ventaja]" : opts.mode === "dis" ? " [Desventaja]" : "";
+    await roll.toMessage({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      flavor:  `<strong>${label}</strong> — ${formula}${modeTag}<br><span class="fci-tabla-result">📋 ${roll.total}. ${result}</span>`,
+    });
+  });
+
+  html.find("[data-action='place-area-template']").click(ev => {
+    const btn  = ev.currentTarget;
+    const dist = Number(btn.dataset.dist) || 5;
+    const tipo = (btn.dataset.tipo || "esfera").toLowerCase();
+    const SHAPE = {
+      esfera: "circle", sphere: "circle", circle: "circle",
+      cono:   "cone",   cone:   "cone",
+      linea:  "ray",    line:   "ray",    ray:    "ray",
+      cuadrado: "rect", cubo:   "rect",   rect:   "rect", square: "rect",
+    };
+    const shape = SHAPE[tipo] ?? "circle";
+
+    if (!canvas?.scene) return ui.notifications.warn("Necesitas una escena activa para colocar la plantilla.");
+
+    const gridDist  = canvas.scene.grid?.distance ?? 5;
+    const pxPerUnit = canvas.grid.size / gridDist;
+    const r         = dist * pxPerUnit;
+    const halfAngle = (53.13 / 2) * (Math.PI / 180);
+    const rayHalfW  = 2.5 * pxPerUnit;
+    const colorHex  = game.user.color ?? "#ff9900";
+    const colorInt  = parseInt(colorHex.replace("#", ""), 16);
+
+    const preview   = new PIXI.Graphics();
+    const container = canvas.interface ?? canvas.stage;
+    container.addChild(preview);
+
+    const drawAt = (x, y) => {
+      preview.clear();
+      preview.lineStyle(2, colorInt, 1);
+      preview.beginFill(colorInt, 0.18);
+      switch (shape) {
+        case "circle": preview.drawCircle(x, y, r); break;
+        case "rect":   preview.drawRect(x - r / 2, y - r / 2, r, r); break;
+        case "cone":
+          preview.moveTo(x, y);
+          preview.lineTo(x + Math.cos(-halfAngle) * r, y + Math.sin(-halfAngle) * r);
+          preview.arc(x, y, r, -halfAngle, halfAngle);
+          preview.closePath();
+          break;
+        case "ray":
+          preview.drawRect(x, y - rayHalfW, r, rayHalfW * 2);
+          break;
+      }
+      preview.endFill();
+    };
+
+    const toWorld = (clientX, clientY) => {
+      const t = canvas.stage.worldTransform;
+      return { x: (clientX - t.tx) / t.a, y: (clientY - t.ty) / t.d };
+    };
+
+    const snap = (pos) => {
+      try { return canvas.grid.getSnappedPoint?.(pos) ?? canvas.grid.getSnappedPosition?.(pos.x, pos.y) ?? pos; }
+      catch { return pos; }
+    };
+
+    // Get the bounding rect of the PIXI canvas for in-bounds check
+    const canvasEl = canvas.app.view ?? canvas.app.renderer?.view;
+    const board    = canvasEl ?? document.getElementById("board");
+    if (board) board.style.cursor = "crosshair";
+
+    // Initial preview at last known mouse position
+    const initPos = canvas.mousePosition ?? window._forcesCanvasPos ?? { x: 0, y: 0 };
+    drawAt(snap(initPos).x, snap(initPos).y);
+
+    const inBounds = (clientX, clientY) => {
+      if (!canvasEl) return true; // no bounds check fallback
+      const r = canvasEl.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    };
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("keydown", onKey);
+      if (board) board.style.cursor = "";
+      if (preview && !preview.destroyed) preview.destroy();
+    };
+
+    const onMove = (moveEv) => {
+      if (!inBounds(moveEv.clientX, moveEv.clientY)) return;
+      try { const p = snap(toWorld(moveEv.clientX, moveEv.clientY)); drawAt(p.x, p.y); } catch {}
+    };
+
+    const onPointer = async (pEv) => {
+      if (!inBounds(pEv.clientX, pEv.clientY)) return;
+      if (pEv.button === 2) { pEv.preventDefault(); pEv.stopPropagation(); cleanup(); return; }
+      if (pEv.button !== 0) return;
+      pEv.preventDefault();
+      pEv.stopPropagation();
+      cleanup();
+      const pos = snap(toWorld(pEv.clientX, pEv.clientY));
+      try {
+        await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
+          t: shape, x: pos.x, y: pos.y,
+          distance: dist, direction: 0,
+          angle:    shape === "cone" ? 53.13 : shape === "ray" ? 5 : 360,
+          width:    shape === "ray" ? 5 : undefined,
+          user:     game.user.id,
+          fillColor: colorHex,
+        }]);
+      } catch (err) {
+        console.error("Forces | Template error:", err);
+        ui.notifications.warn("No se pudo colocar la plantilla: " + err.message);
+      }
+    };
+
+    const onKey = (kEv) => { if (kEv.key === "Escape") { kEv.preventDefault(); cleanup(); } };
+
+    // Capture phase on document — intercepts before any element or PIXI handler
+    document.addEventListener("pointermove", onMove, true);
+    document.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey);
   });
 
   html.find("[data-action='refund-uses']").click(async ev => {

@@ -1,3 +1,5 @@
+import { puntosToMod, ForcesActorData } from "../data/actor-data.mjs";
+
 function addToPath(obj, path, delta) {
   if (!delta || delta === 0) return;
   const parts = path.split(".");
@@ -76,9 +78,13 @@ function bonusSuffix(opts) {
   return ` +bns ${opts.bonus >= 0 ? "+" : ""}${opts.bonus}`;
 }
 
+const STAT_ABBR = {
+  fuerza:"Fr", aguante:"Agu", velocidad:"Vel", tecnica:"Tec",
+  cognicion:"Cog", carisma:"Car", instintos:"Ins", caos:"Cao",
+};
+
 // ─────────────────────────────────────────────────────────────────────────
 export class ForcesActor extends Actor {
-  // Item buffs are applied here, after TypeDataModel.prepareDerivedData().
   prepareDerivedData() {
     super.prepareDerivedData();
     this._applyItemBuffs();
@@ -86,7 +92,9 @@ export class ForcesActor extends Actor {
 
   _applyItemBuffs() {
     const sys = this.system;
-    const rd  = this.getRollData();
+    const car = sys.caracteristicas;
+    let charModChanged = false;
+
     for (const item of this.items) {
       if (!item.system.equipado) continue;
       if ((item.system.categoria ?? "") === "arma") continue;
@@ -94,9 +102,29 @@ export class ForcesActor extends Actor {
         if (!buff.activo || !buff.target) continue;
         let delta = Number(buff.baseVal) || 0;
         if (buff.scaleVar && buff.scaleVar !== "none") {
-          delta += (Number(buff.scaleMult) || 1) * (Number(rd[buff.scaleVar]) || 0);
+          const sv = buff.scaleVar === "nivel" ? (sys.nivel ?? 0) : (car[buff.scaleVar]?.modificador ?? 0);
+          delta += (Number(buff.scaleMult) || 1) * sv;
         }
-        addToPath(sys, buff.target, Math.round(delta));
+        delta = Math.round(delta);
+        if (!delta) continue;
+
+        if (buff.target.startsWith("caracteristicas.") && buff.target.endsWith(".bonus")) {
+          const carKey = buff.target.slice("caracteristicas.".length, -".bonus".length);
+          if (car[carKey]) { car[carKey].modificador += delta; charModChanged = true; }
+        } else {
+          addToPath(sys, buff.target, delta);
+        }
+      }
+    }
+
+    if (charModChanged) {
+      sys.defensas.defensaCorporal = Math.max(1, 10 + car.aguante.modificador + car.velocidad.modificador);
+      sys.defensas.defensaCaotica  = Math.max(1, 10 + car.caos.modificador   + car.tecnica.modificador);
+      sys.movimiento = Math.max(10, 10 * car.velocidad.modificador + 30 + (sys.bonusMovimiento ?? 0));
+      if ((sys.defensas.anillos?.value ?? 0) >= 100) sys.movimiento += 20;
+      for (const [hab, carKey] of Object.entries(ForcesActorData.SKILL_STAT)) {
+        const skill = sys.habilidades[hab];
+        if (skill) skill.total = (car[carKey]?.modificador ?? 0) + (skill.experticia ?? 0);
       }
     }
   }
@@ -250,50 +278,60 @@ export class ForcesActor extends Actor {
     const sys     = item.system;
     const isOwner = this.isOwner;
 
-    // Effective sections: stored flags OR auto-detected from data (for pre-section items)
     const sec = { ...(sys.secciones ?? {}) };
-    if (sys.descripcion)                            sec.descripcion    = true;
-    if (sys.dadoDanio)                              sec.danioEfecto    = true;
-    if (sys.bonusHit || (sys.numAtaques ?? 1) > 1) sec.hit            = true;
-    if (sys.savingThrow)                            sec.savingThrow    = true;
-    if (sys.usosPorDesc)                            sec.usos           = true;
-    if ((sys.buffs ?? []).length)                   sec.buffs          = true;
+    if (sys.descripcion)                              sec.descripcion    = true;
+    if (sys.dadoDanio)                                sec.danioEfecto    = true;
+    if (sys.bonusHit || (sys.numAtaques ?? 1) > 1 || sys.atacarCon || sys.atacarCon2) sec.hit = true;
+    if (sys.savingThrow)                              sec.savingThrow    = true;
+    if (sys.usosPorDesc)                              sec.usos           = true;
+    if ((sys.buffs ?? []).length)                     sec.buffs          = true;
     if (sys.bonusDf || sys.bonusReaccion || sys.bonusAtaque || sys.slots) sec.bonEstadistica = true;
-    if ((sys.nivelReq ?? 1) > 1 || sys.claseReq)   sec.featClase      = true;
-    if (sys.categoria === "caos")                   sec.caosControl    = true;
-    const max     = sys.usosPorDesc ?? 0;
-    let usesCurr  = sys.usosActuales ?? 0;
+    if ((sys.nivelReq ?? 1) > 1 || sys.claseReq)     sec.featClase      = true;
+    if (sys.categoria === "caos")                     sec.caosControl    = true;
+    if (sys.dadoLibreFormula || sys.dadoLibreTabla)   sec.dadoLibre      = true;
+    if (sys.areaEfecto)                               sec.areaEfecto     = true;
 
-    // Deduct uses
+    const max    = sys.usosPorDesc ?? 0;
+    let usesCurr = sys.usosActuales ?? 0;
+
     if (isOwner && max > 0) {
       if (usesCurr <= 0)
         return void ui.notifications.warn(`${item.name}: Sin usos restantes (0/${max}).`);
       usesCurr--;
       await item.update({ "system.usosActuales": usesCurr });
     }
-
-    // Deduct EC for caos items
     if (isOwner && sec.caosControl && (sys.costoCaos ?? 0) > 0) {
       const ec = this.system.defensas.energiaCaotica.value ?? 0;
       await this.update({ "system.defensas.energiaCaotica.value": Math.max(0, ec - sys.costoCaos) });
     }
 
-    // Header tags
-    const tags = [];
+    // Declare everything before building tags/rollRows
+    const car      = this.system.caracteristicas;
+    const cMod     = car.caos.modificador;
+    const aId      = this.id;
+    const iId      = item.id;
+    const tags     = [];
+    const rollRows = [];
+
+    // ── Tags ──
+    if (sys.categoria === "tarjeta" && sys.costoTarjeta)
+      tags.push(`<span class="fci-tag fci-dur">🃏 ${sys.costoTarjeta} slot</span>`);
     if (sec.caosControl && sys.costoCaos)
       tags.push(`<span class="fci-tag fci-caos-cost">✦ ${sys.costoCaos} EC${sys.esReaccion ? " · ⚡ Reacción" : ""}</span>`);
     if (sec.duracion && sys.duracion)
       tags.push(`<span class="fci-tag fci-dur">⏱ ${sys.duracion}</span>`);
     if (sec.rango && sys.rango)
       tags.push(`<span class="fci-tag fci-dur">📐 ${sys.rango} ft</span>`);
+    if (sec.areaEfecto && sys.areaEfecto)
+      tags.push(`<span class="fci-tag fci-dur">💥 ${sys.areaEfecto} ft${sys.areaEfectoTipo ? ` (${sys.areaEfectoTipo})` : ""}</span>`);
     if (sec.usos && max > 0)
       tags.push(`<span class="fci-tag fci-uses-disp">🔄 ${usesCurr}/${max} usos</span>`);
-    if (sec.savingThrow && sys.savingThrow)
-      tags.push(`<span class="fci-tag fci-save-tag">🛡 ${sys.savingThrow} DC${sys.savingThrowDC}</span>`);
+    if (sec.savingThrow)
+      tags.push(`<span class="fci-tag fci-save-tag">🛡 ${sys.savingThrow || "ST"} DC${sys.savingThrowDC}</span>`);
     if (sec.featClase && (sys.nivelReq > 1 || sys.claseReq))
       tags.push(`<span class="fci-tag fci-feat-tag">⭐ ${[sys.claseReq, sys.nivelReq > 1 ? "Nv." + sys.nivelReq : ""].filter(Boolean).join(" ")}</span>`);
 
-    // Stat bonus row
+    // ── Stat bonus row ──
     const bonuses = [];
     if (sec.bonEstadistica) {
       if (sys.bonusDf)       bonuses.push(`DF Corp <strong>+${sys.bonusDf}</strong>`);
@@ -301,37 +339,33 @@ export class ForcesActor extends Actor {
       if (sys.bonusAtaque)   bonuses.push(`Ataque <strong>+${sys.bonusAtaque}</strong>`);
       if (sys.slots)         bonuses.push(`Slots <strong>+${sys.slots}</strong>`);
     }
-    const bonRow = bonuses.length
-      ? `<div class="fci-bonus-row">${bonuses.join(" · ")}</div>` : "";
+    const bonRow = bonuses.length ? `<div class="fci-bonus-row">${bonuses.join(" · ")}</div>` : "";
 
-    // Roll buttons (only in chat, not in hover preview)
-    const car  = this.system.caracteristicas;
-    const fMod = car.fuerza.modificador;
-    const tMod = car.tecnica.modificador;
-    const cMod = car.caos.modificador;
-    const aId  = this.id;
-    const iId  = item.id;
-    const rollRows = [];
-
+    // ── Roll rows ──
     if (sec.hit) {
-      const hit = sys.bonusHit ?? 0;
-      const n   = sys.numAtaques ?? 1;
-      const fTotal = fMod + hit;
-      const tTotal = tMod + hit;
-      rollRows.push(`
-        <div class="fci-roll-row">
-          <span class="fci-dmg-label">Ataque${n > 1 ? ` ×${n}` : ""}${hit ? ` (+${hit} hit)` : ""}</span>
-          <div class="fci-btn-group">
-            <button class="fci-roll-btn" data-action="roll-attack" data-tipo="fuerza" data-actor-id="${aId}" data-item-id="${iId}">
-              🗡 Fr ${fTotal >= 0 ? "+" : ""}${fTotal}
-            </button>
-            <button class="fci-roll-btn" data-action="roll-attack" data-tipo="tecnica" data-actor-id="${aId}" data-item-id="${iId}">
-              ⚙ Tec ${tTotal >= 0 ? "+" : ""}${tTotal}
-            </button>
-          </div>
-        </div>`);
+      const hit   = sys.bonusHit ?? 0;
+      const n     = sys.numAtaques ?? 1;
+      const stat1 = sys.atacarCon  || null;
+      const stat2 = sys.atacarCon2 || null;
+      const btns  = [];
+      if (stat1) {
+        const c = car[stat1] ?? car.fuerza;
+        const m = c.modificador + hit;
+        btns.push(`<button class="fci-roll-btn" data-action="roll-attack" data-tipo="${stat1}" data-actor-id="${aId}" data-item-id="${iId}">🗡 ${STAT_ABBR[stat1] ?? stat1} ${m >= 0 ? "+" : ""}${m}</button>`);
+      }
+      if (stat2) {
+        const c = car[stat2] ?? car.tecnica;
+        const m = c.modificador + hit;
+        btns.push(`<button class="fci-roll-btn" data-action="roll-attack" data-tipo="${stat2}" data-actor-id="${aId}" data-item-id="${iId}">⚙ ${STAT_ABBR[stat2] ?? stat2} ${m >= 0 ? "+" : ""}${m}</button>`);
+      }
+      if (btns.length) {
+        rollRows.push(`
+          <div class="fci-roll-row">
+            <span class="fci-dmg-label">Ataque${n > 1 ? ` ×${n}` : ""}${hit ? ` (+${hit} hit)` : ""}</span>
+            <div class="fci-btn-group">${btns.join("")}</div>
+          </div>`);
+      }
     }
-
     if (sec.danioEfecto && sys.dadoDanio) {
       const diceStr = sys.bonusDanio ? `${sys.dadoDanio}+${sys.bonusDanio}` : sys.dadoDanio;
       rollRows.push(`
@@ -342,7 +376,30 @@ export class ForcesActor extends Actor {
           <button class="fci-roll-btn" data-action="roll-damage" data-actor-id="${aId}" data-item-id="${iId}">🎲 Tirar daño</button>
         </div>`);
     }
-
+    if (sec.dadoLibre) {
+      const dlLabel = sys.dadoLibreLabel || "Tirada libre";
+      if (sys.dadoLibreTabla) {
+        const entries = (sys.dadoLibreEntradas ?? "").split("\n").filter(e => e.trim());
+        if (entries.length) {
+          rollRows.push(`
+            <div class="fci-roll-row">
+              <span class="fci-dmg-label">📋 ${dlLabel}</span>
+              <strong class="fci-dmg-dice">1d${entries.length}</strong>
+              <button class="fci-roll-btn" data-action="roll-tabla"
+                      data-actor-id="${aId}" data-item-id="${iId}">🎲 Lanzar en tabla</button>
+            </div>`);
+        }
+      } else if (sys.dadoLibreFormula) {
+        rollRows.push(`
+          <div class="fci-roll-row">
+            <span class="fci-dmg-label">${dlLabel}</span>
+            <strong class="fci-dmg-dice">${sys.dadoLibreFormula}</strong>
+            <button class="fci-roll-btn" data-action="roll-dado-libre"
+                    data-formula="${sys.dadoLibreFormula}"
+                    data-label="${dlLabel.replace(/"/g, "&quot;")}">🎲 Tirar</button>
+          </div>`);
+      }
+    }
     if (sec.caosControl) {
       rollRows.push(`
         <div class="fci-roll-row">
@@ -352,18 +409,28 @@ export class ForcesActor extends Actor {
           </button>
         </div>`);
     }
-
-    if (sec.savingThrow && sys.savingThrow) {
-      const stStat = sys.savingThrowStat || "instintos";
+    if (sec.savingThrow) {
+      const stStat  = sys.savingThrowStat || "instintos";
+      const stLabel = sys.savingThrow || "Saving Throw";
       rollRows.push(`
         <div class="fci-roll-row">
-          <span class="fci-dmg-label">Saving Throw:</span>
-          <span class="fci-save-info">${sys.savingThrow}</span>
-          <strong class="fci-dmg-dice">DC ${sys.savingThrowDC}</strong>
-          <button class="fci-roll-btn" data-action="roll-saving-throw" data-stat="${stStat}" data-dc="${sys.savingThrowDC}">🛡 Tirar</button>
+          <span class="fci-dmg-label">🛡 ${stLabel} DC ${sys.savingThrowDC}</span>
+          <button class="fci-roll-btn" data-action="roll-saving-throw" data-stat="${stStat}" data-dc="${sys.savingThrowDC}">Tirar</button>
         </div>`);
     }
-
+    if (sec.areaEfecto && sys.areaEfecto) {
+      const tipoNorm = (sys.areaEfectoTipo || "esfera").toLowerCase()
+        .replace(/[áà]/g, "a").replace(/[éè]/g, "e").replace(/[íì]/g, "i")
+        .replace(/[óò]/g, "o").replace(/[úù]/g, "u").replace(/\s+/g, "");
+      rollRows.push(`
+        <div class="fci-roll-row">
+          <span class="fci-dmg-label">💥 ${sys.areaEfecto} ft${sys.areaEfectoTipo ? ` · ${sys.areaEfectoTipo}` : ""}</span>
+          <button class="fci-roll-btn fci-area-btn" data-action="place-area-template"
+                  data-dist="${sys.areaEfecto}" data-tipo="${tipoNorm}">
+            🎯 Colocar plantilla
+          </button>
+        </div>`);
+    }
     if (sec.usos && max > 0 && isOwner) {
       const refundDisabled = usesCurr >= max ? " disabled" : "";
       rollRows.push(`
@@ -403,15 +470,158 @@ export class ForcesActor extends Actor {
     });
   }
 
-  async rollVidaDado() {
+  async levelUp() {
     const dado = this.system.vidaDado ?? 6;
-    const roll = new Roll(`1d${dado}`);
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>Tirada de Vida</strong> (1d${dado})`,
+    const mod  = this.system.caracteristicas.aguante.modificador;
+    const avg  = Math.max(1, Math.floor(dado / 2) + 1 + mod);
+    const lvl  = this.system.nivel ?? 1;
+    const maxHP = this.system.defensas.vida.max ?? 0;
+    const curHP = this.system.defensas.vida.value ?? 0;
+
+    return new Promise(resolve => {
+      new Dialog({
+        title: `⬆ Subir de Nivel (${lvl} → ${lvl + 1})`,
+        content: `<div style="padding:10px 4px">
+          <p>Dado de vida: <strong>1d${dado}</strong> + mod Aguante (${mod >= 0 ? "+" : ""}${mod})</p>
+          <p>Promedio: <strong>${avg} PV</strong></p>
+        </div>`,
+        buttons: {
+          roll: {
+            icon: "<i class='fas fa-dice'></i>", label: "Tirar dado",
+            callback: async () => {
+              const roll = new Roll(`1d${dado}+${mod}`);
+              await roll.evaluate();
+              const gained = Math.max(1, roll.total);
+              await this.update({
+                "system.nivel":                 Math.min(20, lvl + 1),
+                "system.defensas.vida.max":     maxHP + gained,
+                "system.defensas.vida.value":   curHP + gained,
+              });
+              await roll.toMessage({
+                speaker: ChatMessage.getSpeaker({ actor: this }),
+                flavor:  `<strong>¡Nivel ${lvl + 1}!</strong> +${gained} PV máx (1d${dado}${mod >= 0 ? "+" : ""}${mod})`,
+              });
+              resolve(gained);
+            },
+          },
+          avg: {
+            icon: "<i class='fas fa-calculator'></i>", label: `Promedio (+${avg} PV)`,
+            callback: async () => {
+              await this.update({
+                "system.nivel":                 Math.min(20, lvl + 1),
+                "system.defensas.vida.max":     maxHP + avg,
+                "system.defensas.vida.value":   curHP + avg,
+              });
+              ui.notifications.info(`${this.name}: ¡Nivel ${lvl + 1}! +${avg} PV máx (promedio).`);
+              resolve(avg);
+            },
+          },
+          cancel: { icon: "<i class='fas fa-times'></i>", label: "Cancelar", callback: () => resolve(null) },
+        },
+        default: "roll",
+      }, { classes: ["dialog", "forces-roll-dlg-win"] }).render(true);
     });
-    return roll;
+  }
+
+  async shortRest() {
+    const dado  = this.system.vidaDado ?? 6;
+    const mod   = this.system.caracteristicas.aguante.modificador;
+    const avg   = Math.max(1, Math.floor(dado / 2) + 1 + mod);
+    const maxHP = this.system.defensas.vida.max ?? 0;
+    const curHP = this.system.defensas.vida.value ?? 0;
+    const maxEC = this.system.defensas.energiaCaotica.max ?? 0;
+
+    return new Promise(resolve => {
+      new Dialog({
+        title: "💤 Descanso Corto",
+        content: `<div style="padding:10px 4px">
+          <p>Recuperas PV con tu dado de vida y restauras toda tu EC:</p>
+          <p><strong>1d${dado}</strong> + mod Aguante (${mod >= 0 ? "+" : ""}${mod}) · Promedio: <strong>${avg}</strong></p>
+          <p style="color:#888;font-size:11px">PV actuales: ${curHP} / ${maxHP} · EC: → ${maxEC}</p>
+        </div>`,
+        buttons: {
+          roll: {
+            icon: "<i class='fas fa-dice'></i>", label: "Tirar dado de vida",
+            callback: async () => {
+              const roll   = new Roll(`1d${dado}+${mod}`);
+              await roll.evaluate();
+              const healed = Math.max(1, roll.total);
+              const newHP  = Math.min(maxHP, curHP + healed);
+              await this.update({
+                "system.defensas.vida.value":           newHP,
+                "system.defensas.energiaCaotica.value": maxEC,
+              });
+              await roll.toMessage({
+                speaker: ChatMessage.getSpeaker({ actor: this }),
+                flavor:  `<strong>Descanso Corto</strong> — Recupera ${newHP - curHP} PV · EC restaurada (${maxEC})`,
+              });
+              resolve(healed);
+            },
+          },
+          avg: {
+            icon: "<i class='fas fa-calculator'></i>", label: `Promedio (+${avg} PV)`,
+            callback: async () => {
+              const newHP = Math.min(maxHP, curHP + avg);
+              await this.update({
+                "system.defensas.vida.value":           newHP,
+                "system.defensas.energiaCaotica.value": maxEC,
+              });
+              ui.notifications.info(`${this.name}: Descanso corto — recupera ${newHP - curHP} PV y EC restaurada.`);
+              resolve(avg);
+            },
+          },
+          cancel: { icon: "<i class='fas fa-times'></i>", label: "Cancelar", callback: () => resolve(null) },
+        },
+        default: "roll",
+      }, { classes: ["dialog", "forces-roll-dlg-win"] }).render(true);
+    });
+  }
+
+  async recarga() {
+    const dado  = this.system.vidaDado ?? 6;
+    const mod   = this.system.caracteristicas.caos.modificador;
+    const avg   = Math.max(1, Math.floor(dado / 2) + 1 + mod);
+    const maxEC = this.system.defensas.energiaCaotica.max ?? 0;
+    const curEC = this.system.defensas.energiaCaotica.value ?? 0;
+
+    return new Promise(resolve => {
+      new Dialog({
+        title: "✦ Recarga de Energía Caótica",
+        content: `<div style="padding:10px 4px">
+          <p>Recuperas EC en un descanso corto:</p>
+          <p><strong>1d${dado}</strong> + mod Caos (${mod >= 0 ? "+" : ""}${mod}) · Promedio: <strong>${avg}</strong></p>
+          <p style="color:#888;font-size:11px">EC actuales: ${curEC} / ${maxEC}</p>
+        </div>`,
+        buttons: {
+          roll: {
+            icon: "<i class='fas fa-dice'></i>", label: "Tirar",
+            callback: async () => {
+              const roll   = new Roll(`1d${dado}+${mod}`);
+              await roll.evaluate();
+              const gained = Math.max(1, roll.total);
+              const newEC  = Math.min(maxEC, curEC + gained);
+              await this.update({ "system.defensas.energiaCaotica.value": newEC });
+              await roll.toMessage({
+                speaker: ChatMessage.getSpeaker({ actor: this }),
+                flavor:  `<strong>Recarga ✦</strong> — Recupera ${newEC - curEC} EC`,
+              });
+              resolve(gained);
+            },
+          },
+          avg: {
+            icon: "<i class='fas fa-calculator'></i>", label: `Promedio (+${avg} EC)`,
+            callback: async () => {
+              const newEC = Math.min(maxEC, curEC + avg);
+              await this.update({ "system.defensas.energiaCaotica.value": newEC });
+              ui.notifications.info(`${this.name}: Recarga — recupera ${newEC - curEC} EC.`);
+              resolve(avg);
+            },
+          },
+          cancel: { icon: "<i class='fas fa-times'></i>", label: "Cancelar", callback: () => resolve(null) },
+        },
+        default: "roll",
+      }, { classes: ["dialog", "forces-roll-dlg-win"] }).render(true);
+    });
   }
 
   async longRest() {
@@ -422,8 +632,8 @@ export class ForcesActor extends Actor {
     }
     await Promise.all(updates);
     await this.update({
-      "system.defensas.vida.value":               this.system.defensas.vida.max,
-      "system.defensas.energiaCaotica.value":     this.system.defensas.energiaCaotica.max,
+      "system.defensas.vida.value":           this.system.defensas.vida.max,
+      "system.defensas.energiaCaotica.value": this.system.defensas.energiaCaotica.max,
     });
     ui.notifications.info(`${this.name}: Long Rest — vida, energía caótica y usos restaurados.`);
   }

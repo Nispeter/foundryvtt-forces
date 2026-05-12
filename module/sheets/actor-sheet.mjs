@@ -25,9 +25,18 @@ const CAR_META = [
   { key: "instintos", label: "Instintos" },
 ];
 
-const RANK_LETTERS = ["F", "E", "D", "C", "B", "A", "S"];
+const RANK_LETTERS = ["F", "E", "D", "C", "B", "A", "S", "S+"];
 
-const MAEST_CAR_META = [...CAR_META, { key: "caos", label: "Caos" }];
+const MAEST_CAR_META = [
+  { key: "fuerza",    label: "Fr" },
+  { key: "aguante",   label: "Agu" },
+  { key: "velocidad", label: "Vel" },
+  { key: "tecnica",   label: "Tec" },
+  { key: "cognicion", label: "Cog" },
+  { key: "carisma",   label: "Car" },
+  { key: "instintos", label: "Ins" },
+  { key: "caos",      label: "Cao" },
+];
 
 function buildRankOptions(puntos) {
   return RANK_LETTERS.map((letter, value) => ({
@@ -41,7 +50,7 @@ export class ForcesActorSheet extends ActorSheet {
       classes:   ["forces", "sheet", "actor"],
       template:  "systems/forces/templates/actor/character-sheet.hbs",
       width:     800,
-      height:    960,
+      height:    840,
       tabs: [{ navSelector: ".sheet-tabs", contentSelector: ".sheet-body", initial: "principal" }],
       resizable: true,
     });
@@ -54,7 +63,6 @@ export class ForcesActorSheet extends ActorSheet {
     ctx.isChar = this.actor.type === "character";
     ctx.isNPC  = this.actor.type === "npc";
 
-    // 7 main characteristics with rank options for the picker
     ctx.caracteristicasList = CAR_META.map(({ key, label }) => ({
       key, label, ...sys.caracteristicas[key],
       rankOptions: buildRankOptions(sys.caracteristicas[key].puntos),
@@ -63,47 +71,52 @@ export class ForcesActorSheet extends ActorSheet {
       ...sys.caracteristicas.caos,
       rankOptions: buildRankOptions(sys.caracteristicas.caos.puntos),
     };
+    ctx.velocidad = {
+      ...sys.caracteristicas.velocidad,
+      rankOptions: buildRankOptions(sys.caracteristicas.velocidad.puntos),
+    };
 
-    // Skills with dots pre-computed (character only)
-    if (ctx.isChar) {
-      ctx.habilidadesList = Object.entries(SKILL_META).map(([key, { label, car }]) => {
-        const skill = sys.habilidades[key];
+    ctx.habilidadesList = Object.entries(SKILL_META).map(([key, { label, car }]) => {
+      const skill = sys.habilidades[key];
+      return {
+        key, label, car,
+        experticia: skill.experticia,
+        total:      skill.total ?? 0,
+        dots: [0, 1, 2].map(i => i < skill.experticia),
+      };
+    });
+    const buildMaestList = (tipo) =>
+      ["s", "a", "b"].map(sk => {
+        const m = sys.maestrias[tipo][sk];
         return {
-          key, label, car,
-          experticia: skill.experticia,
-          total:      skill.total ?? 0,
-          dots: [0, 1, 2].map(i => i < skill.experticia),
+          slotKey: sk,
+          ...m,
+          carOptions: MAEST_CAR_META.map(({ key, label }) => ({
+            key, label, selected: (m.caracteristica || "cognicion") === key,
+          })),
         };
       });
-      const buildMaestList = (tipo) =>
-        ["s", "a", "b"].map(sk => {
-          const m = sys.maestrias[tipo][sk];
-          return {
-            slotKey: sk,
-            ...m,
-            carOptions: MAEST_CAR_META.map(({ key, label }) => ({
-              key, label, selected: (m.caracteristica || "cognicion") === key,
-            })),
-          };
-        });
-      ctx.maestriasTeoricasList  = buildMaestList("teoricas");
-      ctx.maestriasPracticasList = buildMaestList("practicas");
-    } else {
-      ctx.habilidadesList        = [];
-      ctx.maestriasTeoricasList  = [];
-      ctx.maestriasPracticasList = [];
-    }
+    ctx.maestriasTeoricasList  = buildMaestList("teoricas");
+    ctx.maestriasPracticasList = buildMaestList("practicas");
 
-    // Items – grouped by categoria
     const allItems = this.actor.items.contents;
     ctx.itemsCaos     = allItems.filter(i => i.system.categoria === "caos");
     ctx.itemsFeats    = allItems.filter(i => i.system.categoria === "feat");
     ctx.itemsArmas    = allItems.filter(i => i.system.categoria === "arma");
     ctx.itemsTarjetas = allItems.filter(i => i.system.categoria === "tarjeta");
     ctx.itemsOtros    = allItems.filter(i => !["caos", "feat", "arma", "tarjeta"].includes(i.system.categoria));
+    ctx.itemsFavoritos = allItems.filter(i => i.system.favorito);
 
     ctx.caosControlItems = ctx.itemsCaos;
     ctx.contadorItems    = allItems.length;
+
+    // Tarjeta slots: sum costoTarjeta for active (equipado) tarjetas
+    const tarjetasActivas = ctx.itemsTarjetas.filter(i => i.system.equipado);
+    ctx.slotsUsados = tarjetasActivas.reduce((s, i) => s + (i.system.costoTarjeta ?? 1), 0);
+    // Slots disponibles: base slots + bonus from equipped items
+    ctx.slotsDisponibles = (sys.baseSlots ?? 3) + allItems
+      .filter(i => i.system.equipado && (i.system.slots ?? 0) > 0)
+      .reduce((s, i) => s + (i.system.slots ?? 0), 0);
 
     return ctx;
   }
@@ -111,11 +124,10 @@ export class ForcesActorSheet extends ActorSheet {
   activateListeners(html) {
     super.activateListeners(html);
 
-    // Apply custom card colour as CSS variable on the sheet root
     const color = this.actor.system.cardColor ?? "#0b3d6b";
     html[0].closest(".app")?.style.setProperty("--card-color", color);
 
-    // Rolls – available to everyone (including GM observers)
+    // Rolls
     html.find(".roll-caracteristica").click(ev =>
       this.actor.rollCaracteristica(ev.currentTarget.dataset.key)
     );
@@ -136,20 +148,31 @@ export class ForcesActorSheet extends ActorSheet {
       if (item) this.actor.rollCaosControl(item);
     });
     html.find(".roll-vida").click(() => this.actor.longRest());
+    html.find(".roll-short-rest").click(() => this.actor.shortRest());
+    html.find(".roll-recarga").click(() => this.actor.recarga());
+    html.find(".roll-nivel-up").click(() => this.actor.levelUp());
     html.find(".maestria-roll").click(ev => {
       const btn = ev.currentTarget;
       this.actor.rollMaestria(btn.dataset.tipo, btn.dataset.slot);
     });
 
-    // Click anywhere on item row (except controls/use-tick) → send to chat
+    // Item row click → send to chat
     html.find(".item-entry").click(ev => {
-      if (ev.target.closest(".item-controls, .item-uso-tick")) return;
+      if (ev.target.closest(".item-controls, .item-uso-tick, .item-favorito-toggle")) return;
       const wrap = ev.currentTarget.closest("[data-item-id]");
       const item = this.actor.items.get(wrap?.dataset.itemId);
       if (item) this.actor.useItem(item);
     });
 
-    // Floating tooltip — one at a time, positioned to the right as a separate window
+    // Section collapse (principal tab section-blocks)
+    html.find(".section-collapse-btn").click(ev => {
+      const block = ev.currentTarget.closest(".section-block");
+      if (!block) return;
+      block.classList.toggle("collapsed");
+      ev.currentTarget.textContent = block.classList.contains("collapsed") ? "▸" : "▾";
+    });
+
+    // Floating item tooltip
     let _currentExpand = null;
     let _ttTimer       = null;
 
@@ -157,14 +180,9 @@ export class ForcesActorSheet extends ActorSheet {
       clearTimeout(_ttTimer);
       const expand = wrap.querySelector(".item-expand");
       if (!expand) return;
-
-      // Hide previous tooltip
-      if (_currentExpand && _currentExpand !== expand) {
-        _currentExpand.style.display = "none";
-      }
+      if (_currentExpand && _currentExpand !== expand) _currentExpand.style.display = "none";
       _currentExpand = expand;
 
-      // Build floating window structure once per render cycle
       if (!expand.querySelector(".ihc-win-header")) {
         const img  = wrap.querySelector(".item-img")?.getAttribute("src") ?? "";
         const name = wrap.querySelector(".item-name")?.textContent?.trim() ?? "";
@@ -178,7 +196,6 @@ export class ForcesActorSheet extends ActorSheet {
         expand.insertBefore(hdr, body);
       }
 
-      // Position near mouse cursor; flip left/up if off-screen
       const W = 310, H = 360, PAD = 14;
       let left = mx + PAD;
       if (left + W > window.innerWidth - 8) left = mx - W - PAD;
@@ -202,7 +219,10 @@ export class ForcesActorSheet extends ActorSheet {
     };
 
     html.find(".item-entry-wrap")
-      .on("mouseenter", ev => _showTip(ev.currentTarget, ev.clientX, ev.clientY))
+      .on("mouseenter", ev => {
+        if (ev.target.closest(".item-img, .item-controls")) return;
+        _showTip(ev.currentTarget, ev.clientX, ev.clientY);
+      })
       .on("mouseleave", ev => _hideTip(ev.currentTarget.querySelector(".item-expand")));
 
     html.find(".item-expand")
@@ -212,7 +232,7 @@ export class ForcesActorSheet extends ActorSheet {
         _currentExpand = null;
       });
 
-    // Uses tick — decrement remaining uses (owner only via update permission)
+    // Uses tick
     html.find(".item-uso-tick").click(ev => {
       const li   = ev.currentTarget.closest("[data-item-id]");
       const item = this.actor.items.get(li?.dataset.itemId);
@@ -222,9 +242,16 @@ export class ForcesActorSheet extends ActorSheet {
       item.update({ "system.usosActuales": curr <= 0 ? max : curr - 1 });
     });
 
+    // Favorite toggle
+    html.find(".item-favorito-toggle").click(ev => {
+      ev.stopPropagation();
+      const li   = ev.currentTarget.closest("[data-item-id]");
+      const item = this.actor.items.get(li?.dataset.itemId);
+      if (item) item.update({ "system.favorito": !item.system.favorito });
+    });
+
     if (!this.isEditable) return;
 
-    // Rank dropdown — change select to set characteristic puntos
     html.find(".rank-sel").change(ev => {
       const sel = ev.currentTarget;
       this.actor.update({
@@ -232,7 +259,6 @@ export class ForcesActorSheet extends ActorSheet {
       });
     });
 
-    // Skill dot toggle
     html.find(".skill-dot").click(ev => {
       const dot  = ev.currentTarget;
       const key  = dot.dataset.key;
@@ -241,7 +267,6 @@ export class ForcesActorSheet extends ActorSheet {
       this.actor.update({ [`system.habilidades.${key}.experticia`]: curr === idx + 1 ? idx : idx + 1 });
     });
 
-    // Item CRUD
     html.find(".item-create").click(ev => this._onItemCreate(ev));
     html.find(".item-edit").click(ev => {
       const li = ev.currentTarget.closest("[data-item-id]");
@@ -262,14 +287,17 @@ export class ForcesActorSheet extends ActorSheet {
     const cat  = ev.currentTarget.dataset.cat ?? "equipo";
     const name = game.i18n.localize("FORCES.NewItem");
 
-    // Auto-enable default sections for this category
     const { CAT_DEFAULTS } = await import("../data/item-data.mjs");
     const defaults = CAT_DEFAULTS[cat] ?? ["descripcion"];
     const secciones = {};
     for (const k of defaults) secciones[k] = true;
 
+    // Auto-equip weapons, feats, caos, and armour
+    const AUTO_EQUIP = ["arma", "feat", "caos", "armadura"];
+    const equipado = AUTO_EQUIP.includes(cat);
+
     const items = await this.actor.createEmbeddedDocuments("Item", [
-      { name, type: "item", system: { categoria: cat, secciones } },
+      { name, type: "item", system: { categoria: cat, secciones, equipado } },
     ]);
     if (items?.[0]) items[0].sheet.render(true);
   }

@@ -151,7 +151,7 @@
   background: rgba(255,255,255,0.1); color: #e8f4ff;
 }
 .forces.sheet .badge-mod {
-  font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.75); line-height: 1;
+  font-size: 9px; font-weight: 700; color: #444; line-height: 1;
 }
 
 /* Caos rank badge (roll button) */
@@ -246,7 +246,7 @@
   background: var(--bg-content);
   border: 2px solid var(--card-color, var(--clr-accent)); border-top: none;
   border-radius: 0 0 var(--radius) var(--radius);
-  padding: 10px;
+  padding: 6px 8px;
 }
 .forces.sheet .tab { display: none; }
 .forces.sheet .tab.active { display: block; }
@@ -258,8 +258,8 @@
   background: var(--bg-section);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 6px 10px 8px;
-  margin-bottom: 8px;
+  padding: 4px 8px 5px;
+  margin-bottom: 5px;
   box-shadow: var(--shadow-sm);
 }
 .forces.sheet .section-title,
@@ -375,7 +375,7 @@
 /* ══════════════════════════════════════════
    MAIN COLUMNS
    ══════════════════════════════════════════ */
-.forces.sheet .main-columns { display: flex; gap: 8px; margin-bottom: 8px; }
+.forces.sheet .main-columns { display: flex; gap: 6px; margin-bottom: 5px; align-items: stretch; }
 .forces.sheet .habilidades-col {
   flex: 0 0 195px;
   background: var(--bg-section);
@@ -383,11 +383,12 @@
   border-radius: var(--radius);
   padding: 6px 8px;
   box-shadow: var(--shadow-sm);
+  overflow-y: auto;
 }
 .forces.sheet .right-col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 
 /* ── Habilidades ── */
-.forces.sheet .habilidades-list { display: flex; flex-direction: column; gap: 1px; }
+.forces.sheet .habilidades-list { display: flex; flex-direction: column; gap: 0; }
 .forces.sheet .hab-row {
   display: flex; align-items: center; gap: 5px;
   padding: 2px 3px; border-radius: 3px;
@@ -509,6 +510,23 @@
 .forces.sheet .caos-formula-info { font-size: 10px; color: var(--clr-caos); font-weight: 700; }
 .forces.sheet .caos-formula-lbl  { font-size: 10px; }
 
+/* Level-up button (portrait badge corner) */
+.forces.sheet .nivel-up-btn {
+  position: absolute; bottom: -4px; right: -4px;
+  width: 22px; height: 22px;
+  background: var(--clr-green); color: #fff;
+  border: 2px solid rgba(255,255,255,0.6); border-radius: 50%;
+  font-size: 13px; font-weight: 900; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 6px rgba(0,0,0,0.3); transition: all 0.15s; padding: 0;
+}
+.forces.sheet .nivel-up-btn:hover { transform: scale(1.12); background: #1a8040; }
+
+/* Acciones + Reacciones side-by-side */
+.forces.sheet .acciones-reac-flex { display: flex; gap: 8px; align-items: flex-start; }
+.forces.sheet .acciones-col { flex: 1; min-width: 0; }
+.forces.sheet .reacciones-col { flex: 0 0 auto; display: flex; flex-direction: column; gap: 3px; border-left: 1px solid var(--border); padding-left: 8px; }
+
 /* Dado vida */
 .forces.sheet .dado-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .forces.sheet .dado-btn {
@@ -520,25 +538,27 @@
 }
 .forces.sheet .dado-btn:hover { filter: brightness(1.15); }
 .forces.sheet .dado-lbl { font-size: 9px; color: #999; }
+.forces.sheet .dado-btn-short   { background: linear-gradient(135deg, #5a80cc, #2a4a90); }
+.forces.sheet .dado-btn-recarga { background: linear-gradient(135deg, #9b30e0, var(--clr-caos2)); }
 
 /* ══════════════════════════════════════════
    ACCIONES + REACCIONES
    ══════════════════════════════════════════ */
 .forces.sheet .accion-row {
-  display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 2px; margin-bottom: 2px;
 }
 .forces.sheet .accion-row:last-child { margin-bottom: 0; }
 .forces.sheet .accion-stat {
-  font-size: 10px; font-weight: 700; color: #446; min-width: 66px;
-  display: flex; align-items: center; gap: 3px;
+  font-size: 9px; font-weight: 700; color: #446; min-width: 54px;
+  display: flex; align-items: center; gap: 2px;
 }
 .forces.sheet .accion-btn {
-  flex: 1; font-size: 10px; padding: 4px 3px;
+  flex: 1; font-size: 9px; padding: 2px 2px;
   border: 1px solid var(--clr-accent);
   border-radius: var(--radius);
   background: linear-gradient(180deg, #fff 0%, #eef6ff 100%);
   cursor: pointer; font-weight: 700; color: var(--clr-accent2);
-  transition: all 0.12s;
+  transition: all 0.12s; white-space: nowrap;
 }
 .forces.sheet .accion-btn:hover {
   background: linear-gradient(180deg, var(--clr-accent), var(--clr-accent2));
@@ -555,10 +575,10 @@
 .forces.sheet .reacciones-caos-row { display: flex; gap: 6px; }
 .forces.sheet .reacciones-block,
 .forces.sheet .caos-ctrl-block { flex: 1; }
-.forces.sheet .reac-entry { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
-.forces.sheet .reac-stat  { font-size: 10px; font-weight: 700; min-width: 52px; display: flex; align-items: center; gap: 3px; }
+.forces.sheet .reac-entry { display: flex; align-items: center; gap: 3px; margin-bottom: 2px; }
+.forces.sheet .reac-stat  { font-size: 9px; font-weight: 700; min-width: 46px; display: flex; align-items: center; gap: 2px; }
 .forces.sheet .reac-btn {
-  flex: 1; font-size: 10px; padding: 4px 5px;
+  flex: 1; font-size: 9px; padding: 2px 4px;
   border: 1px solid var(--border); border-radius: var(--radius);
   background: #fff; cursor: pointer; transition: all 0.12s;
 }
@@ -607,7 +627,7 @@
   padding: 2px 4px; background: #fff;
 }
 .forces.sheet .maestria-car-sel {
-  flex: 0 0 66px; font-size: 9px; padding: 1px 1px;
+  flex: 0 0 38px; font-size: 9px; padding: 1px 0px;
   border: 1px solid var(--border); border-radius: var(--radius); background: #fff;
 }
 
@@ -633,7 +653,7 @@
 .forces.sheet .igroup-feat  { background: linear-gradient(90deg, #fffae0, #fffce8); border-color: #d4c060; }
 
 .forces.sheet .item-create-btn {
-  font-size: 11px; padding: 3px 10px;
+  font-size: 9px; padding: 1px 6px;
   border: 1px solid; border-radius: var(--radius);
   cursor: pointer; font-weight: 700; transition: all 0.12s;
 }
@@ -762,15 +782,15 @@
   box-shadow: 0 0 6px rgba(212,160,23,0.35);
 }
 .forces.sheet.item .item-header-body {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 4px;
 }
 .forces.sheet.item .item-header-controls {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 .forces.sheet.item .item-name-input {
   width: 100%; font-size: 13px; font-weight: 900; border: none; background: transparent;
   border-bottom: 1px solid rgba(212,160,23,0.5); color: #fff;
-  padding-bottom: 1px;
+  padding-bottom: 2px;
 }
 .forces.sheet.item .item-name-input::placeholder { color: rgba(200,220,255,0.4); }
 .forces.sheet.item .item-cat-sel {
@@ -1216,22 +1236,22 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
    ITEM SHEET v2 — header + section system
    ══════════════════════════════════════════ */
 
-/* Header: image · name (flex-1) · controls (col, right-aligned) */
-.forces.sheet.item .item-header { align-items: center; }
-.forces.sheet.item .item-name-input { flex: 1; min-width: 0; width: auto; }
+/* Header: image · [name above, controls bar below] */
+.forces.sheet.item .item-header { align-items: flex-start; padding-top: 9px; }
+.forces.sheet.item .item-name-input { width: 100%; }
 
 .forces.sheet.item .item-header-controls {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex: 0 0 auto;
+  display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 .forces.sheet.item .item-cat-sel {
-  font-size: 11px; padding: 3px 5px;
+  font-size: 10px; padding: 2px 4px;
   border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius);
   background: rgba(255,255,255,0.12); color: #e8f4ff; cursor: pointer;
 }
 .forces.sheet.item .item-cat-sel option { background: #1a2a3a; color: #e8f4ff; }
 .forces.sheet.item .equip-label {
-  font-size: 11px; color: rgba(200,230,255,0.8);
-  display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap;
+  font-size: 10px; color: rgba(200,230,255,0.8);
+  display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap;
 }
 
 /* Bottom "add section" footer — slim strip with floating panel */
@@ -1262,23 +1282,48 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
 }
 .forces.sheet.item .sec-add-list {
   display: none; flex-wrap: wrap; gap: 5px;
-  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
   background: #fff;
-  border: 1px solid var(--clr-accent);
-  border-radius: var(--radius);
+  border: 2px solid var(--clr-accent);
+  border-radius: 10px;
   padding: 10px 12px;
-  box-shadow: 0 -6px 20px rgba(0,0,0,0.14), 0 -1px 4px rgba(0,0,0,0.06);
-  z-index: 200;
+  max-height: 220px; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12);
+  z-index: 20000;
 }
-.forces.sheet.item .sec-add-footer.open .sec-add-list { display: flex; }
 .forces.sheet.item .sec-add-btn {
-  font-size: 10px; font-weight: 700; padding: 4px 11px;
-  border: 1px solid #c8d8f0; border-radius: 14px;
+  font-size: 9px; font-weight: 700; padding: 2px 7px;
+  border: 1px solid #c8d8f0; border-radius: 10px;
   background: #f4f8ff; color: #446; cursor: pointer; transition: all 0.12s;
   white-space: nowrap;
 }
 .forces.sheet.item .sec-add-btn:hover {
   border-color: var(--clr-accent); color: #fff; background: var(--clr-accent);
+}
+.forces.sheet.item .sec-add-btn.sec-btn-active {
+  background: var(--clr-accent); color: #fff; border-color: var(--clr-accent2);
+}
+.forces.sheet.item .sec-add-btn.sec-btn-active:hover { background: var(--clr-accent2); }
+
+/* ── Dado libre tabla ── */
+.forces.sheet.item .sec-tabla-wrap {
+  margin-top: 6px; display: flex; flex-direction: column; gap: 3px;
+}
+.forces.sheet.item .sec-tabla-info {
+  font-size: 10px; color: #668; font-style: italic;
+}
+.forces.sheet.item .sec-tabla-input {
+  width: 100%; min-height: 70px; max-height: 180px; resize: vertical;
+  font-size: 11px; line-height: 1.55; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 4px; padding: 4px 7px;
+  background: #f8faff; color: var(--text);
+}
+
+/* ── Chat table result ── */
+.fci-tabla-result {
+  display: inline-block; margin-top: 4px;
+  background: #f0f7ff; border-left: 3px solid var(--clr-accent);
+  padding: 3px 8px; border-radius: 0 4px 4px 0;
+  font-style: italic; color: #223;
 }
 
 /* Sections body */
@@ -1439,3 +1484,183 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
   font-size: 8px; font-weight: 700; font-variant: small-caps;
   color: #778; white-space: nowrap; letter-spacing: 0.3px;
 }
+
+/* ══════════════════════════════════════════
+   NEW FEATURES — Batch 3
+   ══════════════════════════════════════════ */
+
+/* ── S+ rank styles (rank-splus) ── */
+/* car-circle */
+.forces.sheet .car-circle.rank-splus {
+  background: linear-gradient(135deg, #ff4040 0%, #8a0000 100%);
+  border-color: #600;
+}
+.forces.sheet .car-circle.rank-splus .car-rank,
+.forces.sheet .car-circle.rank-splus .car-mod-sm { color: #ffe0e0; }
+
+/* rank-badge (caos header badge) */
+.forces.sheet .rank-badge.rank-splus {
+  border-color: #900; background: linear-gradient(135deg, #ff9090, #8a0000);
+}
+.forces.sheet .rank-badge.rank-splus .badge-rank,
+.forces.sheet .rank-badge.rank-splus .badge-mod { color: #fff; }
+
+/* rank-chip (inline chip in actions/reactions) */
+.forces.sheet .rank-chip.rank-splus { background: #8a0000; color: #ffe0e0; }
+
+/* mrank-btn (maestría buttons) */
+.forces.sheet .mrank-btn.rank-splus { background: #8a0000; border-color: #500; color: #ffe0e0; }
+
+/* stat-disp-cell (bio tab grid) */
+.forces.sheet .stat-disp-cell.rank-splus {
+  border-color: #8a0000;
+  background: linear-gradient(135deg, #ffe8e8, #ffd0d0);
+}
+.forces.sheet .stat-disp-cell.rank-splus .stat-disp-rank { color: #8a0000; }
+
+/* ── Movement badge: velocity rank letter ── */
+.forces.sheet .mov-rank {
+  font-size: 15px; font-weight: 900; line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.forces.sheet .mov-value { font-size: 13px; font-weight: 900; line-height: 1; }
+.forces.sheet .mov-label { font-size: 8px; opacity: 0.85; }
+/* Mov badge: show the movement number (can be 2-3 digits) — smaller font than rank letters */
+.forces.sheet .roll-mov-badge .badge-rank { font-size: 14px; }
+
+/* ── Section header row + collapse button (principal tab) ── */
+.forces.sheet .section-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.forces.sheet .section-header-row .section-title,
+.forces.sheet .section-header-row .col-title { margin: 0; flex: 1; }
+.forces.sheet .section-collapse-btn {
+  font-size: 10px; padding: 0; width: 18px; height: 18px; flex: 0 0 18px;
+  border: none; background: transparent; color: #aab; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.12s; border-radius: 3px; flex-shrink: 0;
+}
+.forces.sheet .section-collapse-btn:hover { color: var(--clr-accent); background: rgba(30,155,218,0.08); }
+.forces.sheet .section-block .section-content { transition: none; }
+.forces.sheet .section-block.collapsed .section-content { display: none; }
+
+/* ── Caos + Maestrías side-by-side row ── */
+.forces.sheet .caos-maestrias-row {
+  display: flex; gap: 6px;
+}
+.forces.sheet .caos-maestrias-row .caos-ctrl-block,
+.forces.sheet .caos-maestrias-row .maestrias-section { flex: 1; min-width: 0; }
+
+/* ── Inline rank-sel + bonus in car-cell ── */
+.forces.sheet .car-sel-row {
+  display: flex; align-items: center; gap: 2px; width: 100%;
+}
+.forces.sheet .car-bonus-inline {
+  width: 28px; text-align: center; font-size: 9px; flex: 0 0 28px;
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 1px 2px; background: #f5f5f5; color: #555;
+}
+
+/* ── Blue HR separators + range inputs ── */
+.forces.sheet .section-sep,
+.forces.sheet hr {
+  border: none; border-top: 2px solid var(--clr-accent);
+  margin: 6px 0; opacity: 0.25;
+}
+.forces.sheet input[type="range"],
+.forces.sheet input[type="checkbox"] {
+  accent-color: var(--clr-accent) !important;
+}
+
+/* ── Favorites section ── */
+.forces.sheet .favoritos-section { margin-bottom: 8px; }
+.forces.sheet .fav-star-on {
+  color: var(--clr-gold) !important; text-shadow: 0 0 4px rgba(212,160,23,0.6);
+}
+.forces.sheet .item-favorito-toggle {
+  font-size: 13px; color: #ddd; cursor: pointer; flex: 0 0 auto;
+  transition: color 0.12s, text-shadow 0.12s;
+  line-height: 1; padding: 0 2px;
+}
+.forces.sheet .item-favorito-toggle:hover { color: var(--clr-gold); }
+
+/* ── Tarjeta slots badge in group header ── */
+.forces.sheet .tarjeta-slots-badge {
+  font-size: 11px; font-weight: 700; color: #2e7a4a;
+  padding: 2px 8px; border: 1px solid #80c89a; border-radius: 10px;
+  background: #edfff4; margin-right: 4px;
+}
+.forces.sheet .slots-base-label {
+  display: flex; align-items: center; gap: 3px; margin-right: 6px;
+}
+.forces.sheet .slots-base-lbl {
+  font-size: 9px; font-weight: 700; color: #778; text-transform: uppercase;
+}
+.forces.sheet .slots-base-input {
+  width: 32px; text-align: center; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: #fff; padding: 1px 2px;
+}
+
+/* ── Tarjeta cost input in item header ── */
+.forces.sheet.item .tarjeta-cost-input {
+  width: 48px; text-align: center;
+}
+
+/* ── Item sheet: toggle slider panel (replaces pill add-section) ── */
+.forces.sheet.item .sec-toggle-panel {
+  flex: 0 0 auto;
+  border-top: 2px solid var(--clr-accent);
+  background: linear-gradient(90deg, #f0f8ff, #f8fbff);
+  padding: 4px 10px 5px 10px;
+  padding-right: 32px; /* avoid Foundry resize handle */
+}
+.forces.sheet.item .sec-toggle-panel-label {
+  font-size: 8px; font-weight: 700; text-transform: uppercase;
+  color: rgba(30,90,155,0.5); letter-spacing: 0.5px; margin-bottom: 3px;
+}
+.forces.sheet.item .sec-toggle-list {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;
+}
+.forces.sheet.item .sec-toggle-row {
+  display: flex; align-items: center; gap: 4px;
+  cursor: pointer; user-select: none; padding: 1px 0;
+}
+.forces.sheet.item .sec-toggle-row input[type="checkbox"].sec-toggle {
+  display: none; /* hidden; JS handles data updates, CSS handles visual */
+}
+.forces.sheet.item .sec-toggle-track {
+  width: 22px; height: 12px; border-radius: 6px;
+  background: var(--clr-accent); position: relative;
+  transition: background 0.18s; flex: 0 0 22px;
+}
+.forces.sheet.item .sec-toggle-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #fff; transition: left 0.18s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.22);
+}
+.forces.sheet.item .sec-toggle-row input.sec-toggle:checked + .sec-toggle-track {
+  background: var(--clr-accent);
+}
+.forces.sheet.item .sec-toggle-row input.sec-toggle:checked + .sec-toggle-track .sec-toggle-thumb {
+  left: 12px;
+}
+.forces.sheet.item .sec-toggle-name {
+  font-size: 9px; color: #556; white-space: nowrap;
+}
+
+/* ── New section accent colors ── */
+.forces.sheet.item [data-sec-key="dadoLibre"]  { border-left-color: #8840c0; }
+.forces.sheet.item [data-sec-key="areaEfecto"] { border-left-color: #c05020; }
+
+/* ── Chat card: area of effect template button ── */
+.fci-area-btn {
+  border-color: #c05020 !important; color: #8a3010 !important;
+  background: linear-gradient(180deg, #fff, #fff5ef) !important;
+}
+.fci-area-btn:hover {
+  background: linear-gradient(180deg, #c05020, #8a3010) !important; color: #fff !important;
+}
+

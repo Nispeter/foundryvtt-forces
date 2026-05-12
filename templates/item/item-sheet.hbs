@@ -1,6 +1,6 @@
 <form class="{{cssClass}} forces sheet item" autocomplete="off">
 
-  <!-- ═══ HEADER: image · name · category · equipped ═══ -->
+  <!-- ═══ HEADER: image · name · category · equipped · favorito ═══ -->
   <header class="item-header">
     <img class="item-img" src="{{item.img}}" data-edit="img" title="{{item.name}}" />
     <div class="item-header-body">
@@ -15,6 +15,15 @@
           <input type="checkbox" name="system.equipado" {{#if system.equipado}}checked{{/if}} />
           Equipado
         </label>
+        <label class="equip-label">
+          <input type="checkbox" name="system.favorito" {{#if system.favorito}}checked{{/if}} />
+          ★ Fav.
+        </label>
+        {{#if (eq system.categoria "tarjeta")}}
+        <label class="equip-label">
+          Costo: <input type="number" name="system.costoTarjeta" value="{{system.costoTarjeta}}" min="0" class="sec-num-sm tarjeta-cost-input" />
+        </label>
+        {{/if}}
       </div>
     </div>
   </header>
@@ -63,6 +72,34 @@
         <label class="sec-lbl">
           Nº ataques
           <input type="number" name="system.numAtaques" value="{{system.numAtaques}}" min="1" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl">
+          Escala con
+          <select name="system.atacarCon" class="sec-stat-sel">
+            <option value="" {{#if (eq system.atacarCon "")}}selected{{/if}}>— ninguno —</option>
+            <option value="fuerza"    {{#if (eq system.atacarCon "fuerza")}}selected{{/if}}>Fuerza</option>
+            <option value="aguante"   {{#if (eq system.atacarCon "aguante")}}selected{{/if}}>Aguante</option>
+            <option value="velocidad" {{#if (eq system.atacarCon "velocidad")}}selected{{/if}}>Velocidad</option>
+            <option value="tecnica"   {{#if (eq system.atacarCon "tecnica")}}selected{{/if}}>Técnica</option>
+            <option value="cognicion" {{#if (eq system.atacarCon "cognicion")}}selected{{/if}}>Cognición</option>
+            <option value="carisma"   {{#if (eq system.atacarCon "carisma")}}selected{{/if}}>Carisma</option>
+            <option value="instintos" {{#if (eq system.atacarCon "instintos")}}selected{{/if}}>Instintos</option>
+            <option value="caos"      {{#if (eq system.atacarCon "caos")}}selected{{/if}}>Caos</option>
+          </select>
+        </label>
+        <label class="sec-lbl">
+          Alt. escala
+          <select name="system.atacarCon2" class="sec-stat-sel">
+            <option value="" {{#if (eq system.atacarCon2 "")}}selected{{/if}}>— ninguno —</option>
+            <option value="fuerza"    {{#if (eq system.atacarCon2 "fuerza")}}selected{{/if}}>Fuerza</option>
+            <option value="aguante"   {{#if (eq system.atacarCon2 "aguante")}}selected{{/if}}>Aguante</option>
+            <option value="velocidad" {{#if (eq system.atacarCon2 "velocidad")}}selected{{/if}}>Velocidad</option>
+            <option value="tecnica"   {{#if (eq system.atacarCon2 "tecnica")}}selected{{/if}}>Técnica</option>
+            <option value="cognicion" {{#if (eq system.atacarCon2 "cognicion")}}selected{{/if}}>Cognición</option>
+            <option value="carisma"   {{#if (eq system.atacarCon2 "carisma")}}selected{{/if}}>Carisma</option>
+            <option value="instintos" {{#if (eq system.atacarCon2 "instintos")}}selected{{/if}}>Instintos</option>
+            <option value="caos"      {{#if (eq system.atacarCon2 "caos")}}selected{{/if}}>Caos</option>
+          </select>
         </label>
       </div>
     </div>
@@ -256,6 +293,68 @@
     </div>
     {{/if}}
 
+    {{#if secciones.dadoLibre}}
+    <div class="item-section" data-sec-key="dadoLibre">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">🎲 Dado libre / Tabla</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body">
+        <div class="sec-row">
+          <label class="sec-lbl sec-grow">
+            Etiqueta
+            <input type="text" name="system.dadoLibreLabel" value="{{system.dadoLibreLabel}}"
+                   placeholder="Nombre de la tirada…" />
+          </label>
+          {{#unless system.dadoLibreTabla}}
+          <label class="sec-lbl">
+            Fórmula
+            <input type="text" name="system.dadoLibreFormula" value="{{system.dadoLibreFormula}}"
+                   placeholder="2d6+4, 1d10…" class="sec-text-sm" />
+          </label>
+          {{/unless}}
+          <label class="sec-lbl sec-check" title="Activar tabla de resultados">
+            <input type="checkbox" name="system.dadoLibreTabla" {{#if system.dadoLibreTabla}}checked{{/if}} />
+            📋 Tabla
+          </label>
+        </div>
+        {{#if system.dadoLibreTabla}}
+        <div class="sec-tabla-wrap">
+          <span class="sec-tabla-info">Una entrada por línea · dado automático: 1d{{dadoLibreNumEntradas}}</span>
+          <textarea name="system.dadoLibreEntradas" class="sec-tabla-input"
+                    placeholder="Resultado 1&#10;Resultado 2&#10;Resultado 3&#10;…">{{system.dadoLibreEntradas}}</textarea>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if secciones.areaEfecto}}
+    <div class="item-section" data-sec-key="areaEfecto">
+      <div class="sec-header">
+        <button type="button" class="sec-collapse-btn" title="Colapsar">▾</button>
+        <span class="sec-title">💥 Área de efecto</span>
+        <button type="button" class="sec-remove" title="Quitar sección">×</button>
+      </div>
+      <div class="sec-body sec-row">
+        <label class="sec-lbl">
+          Medida (ft)
+          <input type="number" name="system.areaEfecto" value="{{system.areaEfecto}}" min="0" class="sec-num-sm" />
+        </label>
+        <label class="sec-lbl sec-grow">
+          Forma
+          <select name="system.areaEfectoTipo" class="sec-stat-sel">
+            <option value="esfera"   {{#if (eq system.areaEfectoTipo "esfera")}}selected{{/if}}>Esfera</option>
+            <option value="cono"     {{#if (eq system.areaEfectoTipo "cono")}}selected{{/if}}>Cono</option>
+            <option value="linea"    {{#if (eq system.areaEfectoTipo "linea")}}selected{{/if}}>Línea</option>
+            <option value="cuadrado" {{#if (eq system.areaEfectoTipo "cuadrado")}}selected{{/if}}>Cuadrado</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    {{/if}}
+
     <!-- Descripción always last -->
     {{#if secciones.descripcion}}
     <div class="item-section" data-sec-key="descripcion">
@@ -272,23 +371,22 @@
 
     {{#unless seccionesActivas.length}}
     <div class="sec-empty-state">
-      <p>Usa el botón "＋ Sección" para añadir contenido.</p>
+      <p>Activa secciones con los controles de abajo.</p>
     </div>
     {{/unless}}
 
   </div>
 
-  <!-- ═══ ADD SECTION FOOTER ═══ -->
-  {{#if seccionesDisp.length}}
+  <!-- ═══ SECTION ADD FOOTER ═══ -->
   <div class="sec-add-footer">
-    <button type="button" class="sec-add-toggle">＋</button>
-    <span class="sec-add-label">Añadir sección</span>
+    <span class="sec-add-label">Secciones</span>
+    <button type="button" class="sec-add-toggle" title="Añadir / quitar secciones">+</button>
     <div class="sec-add-list">
-      {{#each seccionesDisp}}
-      <button type="button" class="sec-add-btn" data-key="{{key}}">{{label}}</button>
+      {{#each allSectionsToggle}}
+      <button type="button" class="sec-add-btn {{#if active}}sec-btn-active{{/if}}"
+              data-key="{{key}}">{{label}}</button>
       {{/each}}
     </div>
   </div>
-  {{/if}}
 
 </form>

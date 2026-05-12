@@ -2,6 +2,33 @@
 
 All notable changes to the Forces system are documented here.
 
+## [0.3.0] — 2026-05-10
+
+### Added
+- **S+ rank**: puntos=7, modifier=+15 — now a real selectable rank, not a display trick.
+- **Configurable attack stats per item**: hit section now has two stat dropdowns (defaults: Fuerza / Técnica).
+- **Dado libre section**: any free dice formula with a custom label, rolls from chat card.
+- **Área de efecto section**: radius (ft) and shape field, shown as a chip on hover and in chat.
+- **Buff targets expanded**: characteristic bonuses (`Car: *`), Vida (máx.) and EC (máx.) can now be buffed by equipped items.
+- **Two-pass buff system**: characteristic-bonus buffs apply before derivation so skill totals reflect them correctly.
+- **Favoritos**: star toggle on every item row; starred items appear in a Favoritos block at the top of the Principal tab.
+- **Tarjeta slots**: `costoTarjeta` field on tarjetas; header shows slots used / available (from equipped items with slots bonus).
+- **Section toggle sliders**: the "add section" pill panel is replaced by a row of ON/OFF toggles always visible at the bottom of the item sheet.
+- **Collapse buttons on all principal-tab section blocks**: click ▾ to collapse any block; NPC's Caos Control starts collapsed.
+- **Acciones & Reacciones merged** into one collapsible block.
+- **Maestrías moved** next to Caos Control in a side-by-side row (replaces old bottom position).
+- **New items auto-equipped**: arma, feat, caos, and armadura start as equipado=true on creation.
+- **`rankClass` Handlebars helper**: maps rank strings to safe CSS class names (`S+` → `rank-splus`).
+
+### Fixed
+- Caos modifier text invisible on low-rank (F–C) badges — default color was white on a white background.
+- Movement now scales correctly with Velocity rank: `10 × vel modifier + 30`, minimum 10 ft.
+- `costoCaos` default was 10 (triggered section auto-detection on every new item); changed to 0.
+- Equipado + tipo (category) shown on same header line in item sheet.
+- Bonus input moved inline with rank selector in Características cells.
+- Hover tooltip now shows área de efecto, dado libre, tarjeta cost, and caos cost chips.
+- `roll-dado-libre` chat button handler added to forces.mjs.
+
 ## [0.2.0] — 2026-05-10
 
 ### Added
