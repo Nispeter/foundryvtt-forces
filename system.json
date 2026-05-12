@@ -28,7 +28,7 @@
   "primaryTokenAttribute":   "defensas.vida",
   "secondaryTokenAttribute": "defensas.energiaCaotica",
   "manifest": "https://raw.githubusercontent.com/Nispeter/foundryvtt-forces/main/system.json",
-  "download":  "https://github.com/Nispeter/foundryvtt-forces/releases/latest/download/forces.zip",
+  "download":  "https://github.com/Nispeter/foundryvtt-forces/archive/refs/tags/v0.4.0.zip",
   "url":       "https://github.com/Nispeter/foundryvtt-forces",
   "bugs":      "https://github.com/Nispeter/foundryvtt-forces/issues",
   "readme":    "https://github.com/Nispeter/foundryvtt-forces#readme",
