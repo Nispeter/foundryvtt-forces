@@ -2,6 +2,23 @@
 
 All notable changes to the Forces system are documented here.
 
+## [0.4.0] — 2026-05-11
+
+### Added
+- **Base tarjeta slots**: characters now have a configurable `baseSlots` field (default 3) editable directly on the actor sheet header.
+- **NPC full sections**: NPCs now have habilidades, maestrías, and caos sections (same as PCs); habilidades and maestrías start collapsed by default.
+- **NPC maestría bonuses and skill totals**: NPC derivation now applies maestría rank bonuses and computes full skill totals identically to PCs.
+
+### Fixed
+- **Buff system**: characteristic-bonus buffs now modify the derived `modificador` field (post-derivation) instead of the stored `bonus` field, preventing FoundryVTT from resetting them each cycle; downstream values (defenses, movement, skills) are recomputed after applying buffs.
+- **EC max formula**: Energía Caótica max now uses `caos.modificador × 7` (e.g. A rank = +6 → EC max 42) instead of `caos.puntos × 7`.
+- **Section add popup**: the "add section" button in item sheets now opens a floating fixed-position overlay instead of an inline inline list, so it no longer pushes content around.
+- **Equipped icon standardized**: all item types (armas, equipo, tarjetas, caos, feats) now use the same `fa-check-circle` equipped icon.
+- **Tooltip not triggered by icon hover**: hovering over the equip/edit/delete icon controls no longer opens the floating item tooltip.
+- **Checkbox and slider accent color**: checkboxes and range sliders across all sheets (principal, item, secciones) now render in blue (`--clr-accent`) instead of red, overriding FoundryVTT's base CSS.
+- **Toggle track default color**: the section toggle track background is now blue by default (was grey).
+- **Template placement on canvas**: area-of-effect template placement now uses document-level capture-phase pointer events with canvas-bounds checking, reliably intercepting clicks even over HTML overlays above the PIXI canvas.
+
 ## [0.3.0] — 2026-05-10
 
 ### Added

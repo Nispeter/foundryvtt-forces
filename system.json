@@ -2,7 +2,7 @@
   "id": "forces",
   "title": "Forces",
   "description": "Sistema de rol Forces – basado en el universo de Sonic Forces, creado por Makota. Incluye características por rango (F→S), habilidades, maestrías, Caos Control, fichas de personaje y NPC, y sistema de objetos con buffs.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "compatibility": {
     "minimum": "11",
     "verified": "12",
