@@ -72,11 +72,6 @@
       </div>
     </div>
 
-    <!-- Card colour picker -->
-    <div class="card-color-group" title="Color del encabezado">
-      <span class="card-color-lbl">🎨</span>
-      <input type="color" name="system.cardColor" value="{{system.cardColor}}" class="card-color-input" />
-    </div>
   </header>
 
   <!-- ═══════════════ BODY ═══════════════ -->
@@ -94,6 +89,9 @@
       </a>
       <a class="item" data-tab="bio">
         <i class="fas fa-scroll tab-icon"></i><span class="tab-text">Biografía</span>
+      </a>
+      <a class="item" data-tab="config" title="Configuración del personaje">
+        <i class="fas fa-cog tab-icon"></i><span class="tab-text">Config</span>
       </a>
     </nav>
 
@@ -185,8 +183,11 @@
                     <div class="bar-track hp-track">
                       <div class="bar-fill hp-fill" style="width: {{pct system.defensas.vida.value system.defensas.vida.max}}%"></div>
                       <div class="bar-overlay">
-                        <input type="number" name="system.defensas.vida.value"
-                               value="{{system.defensas.vida.value}}" min="0" class="bar-curr" />
+                        {{!-- L15: type=text para aceptar "+5" / "-3" como delta. Handler en JS. --}}
+                        <input type="text" inputmode="numeric"
+                               data-delta-target="system.defensas.vida.value"
+                               data-delta-clamp-max="system.defensas.vida.max"
+                               value="{{system.defensas.vida.value}}" class="bar-curr delta-input" />
                         <span class="bar-sep">/</span>
                         <input type="number" name="system.defensas.vida.max"
                                value="{{system.defensas.vida.max}}" min="0" class="bar-max" />
@@ -228,8 +229,11 @@
                     <div class="bar-track caos-track">
                       <div class="bar-fill caos-fill" style="width: {{pct system.defensas.energiaCaotica.value system.defensas.energiaCaotica.max}}%"></div>
                       <div class="bar-overlay">
-                        <input type="number" name="system.defensas.energiaCaotica.value"
-                               value="{{system.defensas.energiaCaotica.value}}" min="0" class="bar-curr" />
+                        {{!-- L15: type=text para aceptar "+5" / "-3" como delta. Handler en JS. --}}
+                        <input type="text" inputmode="numeric"
+                               data-delta-target="system.defensas.energiaCaotica.value"
+                               data-delta-clamp-max="system.defensas.energiaCaotica.max"
+                               value="{{system.defensas.energiaCaotica.value}}" class="bar-curr delta-input" />
                         <span class="bar-sep">/</span>
                         <span class="bar-max-static">{{system.defensas.energiaCaotica.max}}</span>
                       </div>
@@ -403,7 +407,12 @@
         <div class="items-group">
           <div class="igroup-header igroup-arma">
             <span class="igroup-icon">⚔️</span><h3>Armas</h3>
-            <button type="button" class="item-create-btn item-create" data-cat="arma">+ Añadir</button>
+            <select class="group-sort-sel" data-group="armas" title="Ordenar">
+              {{#each sortOptionsArmas}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <button type="button" class="item-create-btn item-create" data-cat="arma" title="Añadir arma">+</button>
           </div>
           <div class="items-list">
             {{#each itemsArmas}}
@@ -453,7 +462,12 @@
         <div class="items-group">
           <div class="igroup-header igroup-equipo">
             <span class="igroup-icon">🎒</span><h3>Equipo & Armadura</h3>
-            <button type="button" class="item-create-btn item-create" data-cat="equipo">+ Añadir</button>
+            <select class="group-sort-sel" data-group="otros" title="Ordenar">
+              {{#each sortOptionsOtros}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <button type="button" class="item-create-btn item-create" data-cat="equipo" title="Añadir equipo">+</button>
           </div>
           <div class="items-list">
             {{#each itemsOtros}}
@@ -506,17 +520,54 @@
         </div>
 
         <div class="items-group">
+          <div class="igroup-header igroup-loot">
+            <span class="igroup-icon">💰</span><h3>Loot</h3>
+            <select class="group-sort-sel" data-group="loot" title="Ordenar">
+              {{#each sortOptionsLoot}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <button type="button" class="item-create-btn item-create" data-cat="loot" title="Añadir loot">+</button>
+          </div>
+          <div class="items-list">
+            {{#each itemsLoot}}
+            <div class="item-entry-wrap" data-item-id="{{id}}">
+              <div class="item-entry cat-loot">
+                <img src="{{img}}" class="item-img item-expand-trigger" />
+                <span class="item-name item-expand-trigger">{{name}}</span>
+                <div class="item-controls">
+                  <a class="item-favorito-toggle {{#if system.favorito}}fav-star-on{{/if}}" title="Favorito">★</a>
+                  <a class="item-edit"><i class="fas fa-edit"></i></a>
+                  <a class="item-delete"><i class="fas fa-trash"></i></a>
+                </div>
+              </div>
+              <div class="item-expand">
+                {{#if system.descripcion}}<div class="ihc-desc">{{{system.descripcion}}}</div>{{/if}}
+                <p class="ihc-cta">Clic → chat</p>
+              </div>
+            </div>
+            {{else}}
+            <div class="item-entry-empty">Sin loot.</div>
+            {{/each}}
+          </div>
+        </div>
+
+        <div class="items-group">
           <div class="igroup-header igroup-tarjeta">
             <span class="igroup-icon">🃏</span><h3>Tarjetas</h3>
-            {{#if isChar}}
-            <span class="tarjeta-slots-badge" title="Slots usados / disponibles">{{slotsUsados}}/{{slotsDisponibles}}</span>
+            {{!-- L13: slots disponibles ahora para PJ y NPC --}}
+            <span class="tarjeta-slots-badge" title="Usados / Totales">{{slotsUsados}}/{{slotsDisponibles}} ({{slotsLibres}})</span>
             <label class="slots-base-label" title="Slots base del personaje">
               <span class="slots-base-lbl">base</span>
               <input type="number" name="system.baseSlots" value="{{system.baseSlots}}"
                      min="0" max="20" class="slots-base-input" />
             </label>
-            {{/if}}
-            <button type="button" class="item-create-btn item-create" data-cat="tarjeta">+ Añadir</button>
+            <select class="group-sort-sel" data-group="tarjetas" title="Ordenar">
+              {{#each sortOptionsTarjetas}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <button type="button" class="item-create-btn item-create" data-cat="tarjeta" title="Añadir tarjeta">+</button>
           </div>
           <div class="items-list">
             {{#each itemsTarjetas}}
@@ -558,7 +609,12 @@
         <div class="items-group">
           <div class="igroup-header igroup-caos">
             <span class="igroup-icon">✦</span><h3>Caos Control</h3>
-            <button type="button" class="item-create-btn item-create" data-cat="caos">+ Añadir</button>
+            <select class="group-sort-sel" data-group="caos" title="Ordenar">
+              {{#each sortOptionsCaos}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <button type="button" class="item-create-btn item-create" data-cat="caos" title="Añadir caos">+</button>
           </div>
           <div class="items-list">
             {{#each itemsCaos}}
@@ -605,7 +661,12 @@
         <div class="items-group">
           <div class="igroup-header igroup-feat">
             <span class="igroup-icon">⭐</span><h3>Feats de Clase</h3>
-            <button type="button" class="item-create-btn item-create" data-cat="feat">+ Añadir</button>
+            <select class="group-sort-sel" data-group="feats" title="Ordenar">
+              {{#each sortOptionsFeats}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <button type="button" class="item-create-btn item-create" data-cat="feat" title="Añadir feat">+</button>
           </div>
           <div class="items-list">
             {{#each itemsFeats}}
@@ -662,16 +723,16 @@
         <div class="bio-content">
 
           <div class="stats-display-section">
-            <h3 class="col-title">Resumen de características</h3>
+            <h3 class="col-title">Resumen de características <span class="bio-hint">(hover para desglose)</span></h3>
             <div class="stats-display-grid">
               {{#each caracteristicasList}}
-              <div class="stat-disp-cell rank-{{rankClass rank}}">
+              <div class="stat-disp-cell rank-{{rankClass rank}}" data-stat-key="{{key}}">
                 <div class="stat-disp-rank">{{rankDisplay}}</div>
                 <div class="stat-disp-mod">{{signedNum modificador}}</div>
                 <div class="stat-disp-lbl">{{label}}</div>
               </div>
               {{/each}}
-              <div class="stat-disp-cell rank-{{rankClass caos.rank}}">
+              <div class="stat-disp-cell rank-{{rankClass caos.rank}}" data-stat-key="caos">
                 <div class="stat-disp-rank">{{caos.rankDisplay}}</div>
                 <div class="stat-disp-mod">{{signedNum caos.modificador}}</div>
                 <div class="stat-disp-lbl">Caos</div>
@@ -684,6 +745,35 @@
             {{editor system.bio target="system.bio" button=true owner=owner editable=editable}}
           </div>
 
+        </div>
+      </div>
+
+      <!-- ── TAB: CONFIG ── -->
+      <div class="tab config" data-group="primary" data-tab="config">
+        <div class="config-content">
+          <h3 class="col-title">Configuración</h3>
+
+          <div class="config-row">
+            <label class="config-label" title="Tamaño visual del token (no afecta reglas)">
+              <span class="config-lbl">Tamaño del token</span>
+              <select class="token-size-sel config-input">
+                {{#each tokenSizeOptions}}
+                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                {{/each}}
+              </select>
+            </label>
+            <span class="config-hint">S = 0.5x · M = 1x · L = 2x. Aplica a tokens existentes en la escena.</span>
+          </div>
+
+          {{#if isChar}}
+          <div class="config-row">
+            <label class="config-label" title="Color del encabezado y tarjetas">
+              <span class="config-lbl">Color de la página</span>
+              <input type="color" name="system.cardColor" value="{{system.cardColor}}" class="config-input config-color" />
+            </label>
+            <span class="config-hint">Afecta el color del header y las tarjetas de chat.</span>
+          </div>
+          {{/if}}
         </div>
       </div>
 

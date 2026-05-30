@@ -264,9 +264,14 @@
         <div class="buff-help">Objetivo → + valor fijo + estadística × multiplicador</div>
         {{#each buffRows}}
         <div class="buff-row" data-idx="{{idx}}">
+          {{!-- L16: dropdown agrupado por categoría --}}
           <select class="buff-field buff-target" data-field="target">
-            {{#each targetOptions}}
-            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{#each targetGroups}}
+            <optgroup label="{{group}}">
+              {{#each options}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </optgroup>
             {{/each}}
           </select>
           <span class="buff-op">+</span>
@@ -280,6 +285,8 @@
           <span class="buff-op">×</span>
           <input type="number" class="buff-field buff-scale-mult" data-field="scaleMult" value="{{scaleMult}}" />
           {{/if}}
+          {{!-- Bonificador computado on-the-fly (numérico si el item está en un actor, simbólico si no). --}}
+          <span class="buff-computed" title="Bonificador resultante">{{computedLabel}}</span>
           <label class="buff-activo" title="Activo al equipar">
             <input type="checkbox" class="buff-field" data-field="activo" {{#if activo}}checked{{/if}} />
           </label>
@@ -337,18 +344,26 @@
         <span class="sec-title">💥 Área de efecto</span>
         <button type="button" class="sec-remove" title="Quitar sección">×</button>
       </div>
+      {{!-- L11: medida primaria con label adaptado al tipo (radio/longitud/lado). --}}
       <div class="sec-body sec-row">
         <label class="sec-lbl">
-          Medida (ft)
+          {{areaMedidaLabel}} (ft)
           <input type="number" name="system.areaEfecto" value="{{system.areaEfecto}}" min="0" class="sec-num-sm" />
         </label>
+        {{#if areaTipoIsRect}}
+        {{!-- Solo cuadrado/rect tiene segunda medida (alto). Si queda 0, se usa lado=areaEfecto (cuadrado). --}}
+        <label class="sec-lbl">
+          Alto (ft, opc.)
+          <input type="number" name="system.areaEfectoAncho" value="{{system.areaEfectoAncho}}" min="0" class="sec-num-sm" />
+        </label>
+        {{/if}}
         <label class="sec-lbl sec-grow">
           Forma
           <select name="system.areaEfectoTipo" class="sec-stat-sel">
-            <option value="esfera"   {{#if (eq system.areaEfectoTipo "esfera")}}selected{{/if}}>Esfera</option>
-            <option value="cono"     {{#if (eq system.areaEfectoTipo "cono")}}selected{{/if}}>Cono</option>
-            <option value="linea"    {{#if (eq system.areaEfectoTipo "linea")}}selected{{/if}}>Línea</option>
-            <option value="cuadrado" {{#if (eq system.areaEfectoTipo "cuadrado")}}selected{{/if}}>Cuadrado</option>
+            <option value="esfera"   {{#if (eq system.areaEfectoTipo "esfera")}}selected{{/if}}>Esfera (radio)</option>
+            <option value="cono"     {{#if (eq system.areaEfectoTipo "cono")}}selected{{/if}}>Cono (longitud)</option>
+            <option value="linea"    {{#if (eq system.areaEfectoTipo "linea")}}selected{{/if}}>Línea (longitud)</option>
+            <option value="cuadrado" {{#if (eq system.areaEfectoTipo "cuadrado")}}selected{{/if}}>Cuadrado / Rect (ancho)</option>
           </select>
         </label>
       </div>

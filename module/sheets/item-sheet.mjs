@@ -1,17 +1,6 @@
-import { BUFF_TARGETS, ALL_SECTIONS } from "../data/item-data.mjs";
+// Sheet de item. Maneja toggle de secciones, buffs editables, popup de "añadir sección".
 
-const SCALE_VARS = [
-  { value: "none",      label: "— sin escala —" },
-  { value: "nivel",     label: "× Nivel" },
-  { value: "caos",      label: "× Caos" },
-  { value: "fuerza",    label: "× Fuerza" },
-  { value: "aguante",   label: "× Aguante" },
-  { value: "velocidad", label: "× Velocidad" },
-  { value: "tecnica",   label: "× Técnica" },
-  { value: "cognicion", label: "× Cognición" },
-  { value: "carisma",   label: "× Carisma" },
-  { value: "instintos", label: "× Instintos" },
-];
+import { BUFF_TARGETS, buffTargetsGrouped, ALL_SECTIONS, ITEM_CATEGORIAS, SCALE_VARS } from "../constants/items.mjs";
 
 export class ForcesItemSheet extends ItemSheet {
   static get defaultOptions() {
@@ -30,55 +19,88 @@ export class ForcesItemSheet extends ItemSheet {
     const sys = this.item.system;
     ctx.system = sys;
 
-    // Effective sections: stored flags OR auto-detect legacy data
-    const stored = sys.secciones ?? {};
-    const sec = { ...stored };
-    if (stored.descripcion    !== false && sys.descripcion)                                    sec.descripcion    = true;
-    if (stored.duracion       !== false && sys.duracion)                                       sec.duracion       = true;
-    if (stored.rango          !== false && sys.rango)                                          sec.rango          = true;
-    if (stored.danioEfecto    !== false && sys.dadoDanio)                                      sec.danioEfecto    = true;
-    if (stored.hit            !== false && (sys.bonusHit || (sys.numAtaques ?? 1) > 1))        sec.hit            = true;
-    if (stored.featClase      !== false && ((sys.nivelReq ?? 1) > 1 || sys.claseReq))          sec.featClase      = true;
-    if (stored.caosControl    !== false && (sys.costoCaos || sys.esReaccion))                  sec.caosControl    = true;
-    if (stored.usos           !== false && sys.usosPorDesc)                                    sec.usos           = true;
-    if (stored.buffs          !== false && (sys.buffs ?? []).length > 0)                       sec.buffs          = true;
-    if (stored.bonEstadistica !== false && (sys.bonusDf || sys.bonusReaccion || sys.bonusAtaque || sys.slots)) sec.bonEstadistica = true;
-    if (stored.savingThrow    !== false && sys.savingThrow)                                    sec.savingThrow    = true;
-    if (stored.dadoLibre      !== false && (sys.dadoLibreFormula || sys.dadoLibreTabla))        sec.dadoLibre      = true;
-    if (stored.areaEfecto     !== false && sys.areaEfecto)                                     sec.areaEfecto     = true;
+    ctx.secciones         = this._resolveActiveSections(sys);
+    ctx.seccionesActivas  = ALL_SECTIONS.filter(s => ctx.secciones[s.key]);
+    ctx.allSectionsToggle = ALL_SECTIONS.map(s => ({ ...s, active: !!ctx.secciones[s.key] }));
 
-    ctx.secciones         = sec;
-    ctx.seccionesActivas  = ALL_SECTIONS.filter(s => sec[s.key]);
-    // allSectionsToggle drives the toggle-slider panel
-    ctx.allSectionsToggle = ALL_SECTIONS.map(s => ({ ...s, active: !!sec[s.key] }));
-
-    ctx.buffRows = (sys.buffs ?? []).map((b, idx) => ({
-      ...b, idx,
-      targetOptions:   BUFF_TARGETS.map(t => ({ ...t, selected: t.value === b.target })),
-      scaleVarOptions: SCALE_VARS.map(v => ({ ...v, selected: (b.scaleVar || "none") === v.value })),
-      showMult: (b.scaleVar || "none") !== "none",
-    }));
+    // Para mostrar el bonificador computado de cada buff: si el item está
+    // embebido en un actor, calculamos el valor concreto; si está en el world,
+    // lo dejamos simbólico.
+    const ownerActor = this.item.actor;
+    ctx.buffRows = (sys.buffs ?? []).map((b, idx) => {
+      const scaleVar = b.scaleVar || "none";
+      const baseVal  = Number(b.baseVal)   || 0;
+      const mult     = Number(b.scaleMult) || 0;
+      let computed = null;
+      let symbolic = null;
+      if (scaleVar === "none") {
+        computed = baseVal;
+      } else if (ownerActor) {
+        // nivel = system.nivel; cualquier otra = caracteristicas.X.modificador.
+        const statVal = scaleVar === "nivel"
+          ? (ownerActor.system.nivel ?? 0)
+          : (ownerActor.system.caracteristicas?.[scaleVar]?.modificador ?? 0);
+        computed = Math.round(baseVal + mult * statVal);
+      } else {
+        symbolic = `${baseVal >= 0 ? "+" : ""}${baseVal} ${mult >= 0 ? "+" : ""}${mult}×${scaleVar}`;
+      }
+      const computedLabel = computed !== null
+        ? `= ${computed >= 0 ? "+" : ""}${computed}`
+        : `= ${symbolic}`;
+      return {
+        ...b, idx,
+        targetGroups:    buffTargetsGrouped(b.target),
+        targetOptions:   BUFF_TARGETS.map(t => ({ ...t, selected: t.value === b.target })),
+        scaleVarOptions: SCALE_VARS.map(v => ({ ...v, selected: scaleVar === v.value })),
+        showMult: scaleVar !== "none",
+        computedLabel,
+      };
+    });
 
     const tablaEntradas = (sys.dadoLibreEntradas ?? "").split("\n").filter(e => e.trim());
     ctx.dadoLibreNumEntradas = tablaEntradas.length;
 
-    ctx.categorias = [
-      { value: "arma",       label: "Arma" },
-      { value: "armadura",   label: "Armadura" },
-      { value: "equipo",     label: "Equipo / Objeto" },
-      { value: "consumible", label: "Consumible" },
-      { value: "feat",       label: "Feat / Clase" },
-      { value: "caos",       label: "Caos Control" },
-      { value: "tarjeta",    label: "Tarjeta" },
-    ];
+    ctx.categorias = ITEM_CATEGORIAS;
+
+    // L11: label de la medida primaria según tipo de forma.
+    const tipo = (sys.areaEfectoTipo || "esfera").toLowerCase();
+    ctx.areaTipoIsRect   = ["cuadrado", "cubo", "rect", "square"].includes(tipo);
+    ctx.areaMedidaLabel  = ctx.areaTipoIsRect ? "Ancho"
+                        : tipo === "cono" || tipo === "linea" || tipo === "line" || tipo === "ray" ? "Longitud"
+                        : "Radio";
 
     return ctx;
+  }
+
+  // Combina flags `system.secciones.*` con auto-detección de datos legacy
+  // (un objeto pre-flags con dadoDanio sigue mostrando "Daño" sin tener que migrarlo).
+  // Importante: si la flag está explícitamente en `false`, NO se auto-activa.
+  _resolveActiveSections(sys) {
+    const stored = sys.secciones ?? {};
+    const sec = { ...stored };
+    const autoIf = (key, condition) => {
+      if (stored[key] !== false && condition) sec[key] = true;
+    };
+    autoIf("descripcion",    sys.descripcion);
+    autoIf("duracion",       sys.duracion);
+    autoIf("rango",          sys.rango);
+    autoIf("danioEfecto",    sys.dadoDanio);
+    autoIf("hit",            sys.bonusHit || (sys.numAtaques ?? 1) > 1);
+    autoIf("featClase",      (sys.nivelReq ?? 1) > 1 || sys.claseReq);
+    autoIf("caosControl",    sys.costoCaos || sys.esReaccion);
+    autoIf("usos",           sys.usosPorDesc);
+    autoIf("buffs",          (sys.buffs ?? []).length > 0);
+    autoIf("bonEstadistica", sys.bonusDf || sys.bonusReaccion || sys.bonusAtaque || sys.slots);
+    autoIf("savingThrow",    sys.savingThrow);
+    autoIf("dadoLibre",      sys.dadoLibreFormula || sys.dadoLibreTabla);
+    autoIf("areaEfecto",     sys.areaEfecto);
+    return sec;
   }
 
   activateListeners(html) {
     super.activateListeners(html);
 
-    // Per-section collapse toggle
+    // Toggle de collapse por sección.
     const _toggleSection = el => {
       const sec = el.closest(".item-section");
       const btn = sec.querySelector(".sec-collapse-btn");
@@ -88,7 +110,8 @@ export class ForcesItemSheet extends ItemSheet {
     html.find(".sec-collapse-btn").click(ev => _toggleSection(ev.currentTarget));
     html.find(".sec-header .sec-title").click(ev => _toggleSection(ev.currentTarget));
 
-    // Fix buff select values after render
+    // Hack: el value de los <select> no siempre se setea correcto desde Handlebars
+    // cuando el dataset es array de objetos. Aquí lo forzamos después del render.
     const storedBuffs = this.item.system.buffs ?? [];
     html.find(".buff-row").each((_i, row) => {
       const buff = storedBuffs[parseInt(row.dataset.idx)];
@@ -100,8 +123,34 @@ export class ForcesItemSheet extends ItemSheet {
     });
 
     if (!this.isEditable) return;
+    this._activateEditListeners(html);
+  }
 
-    // Sections popup — floating overlay window
+  _activateEditListeners(html) {
+    this._activateSectionsPopup(html);
+
+    // Toggle pills de secciones.
+    html.find(".sec-add-btn").click(ev => {
+      const key    = ev.currentTarget.dataset.key;
+      const active = ev.currentTarget.classList.contains("sec-btn-active");
+      this.item.update({ [`system.secciones.${key}`]: !active });
+    });
+
+    // Botón × en header de sección → desactiva la sección.
+    html.find(".sec-remove").click(ev => {
+      const key = ev.currentTarget.closest(".item-section").dataset.secKey;
+      this.item.update({ [`system.secciones.${key}`]: false });
+    });
+
+    html.find(".buff-add").click(this._onBuffAdd.bind(this));
+    html.find(".buff-remove").click(this._onBuffRemove.bind(this));
+    html.find(".buff-field").on("change", this._onBuffFieldChange.bind(this));
+
+    html.find(".uso-tick").click(this._onUsoTick.bind(this));
+  }
+
+  // Popup flotante de "Añadir sección".
+  _activateSectionsPopup(html) {
     html.find(".sec-add-toggle").click(ev => {
       ev.stopPropagation();
       const btn  = ev.currentTarget;
@@ -127,6 +176,7 @@ export class ForcesItemSheet extends ItemSheet {
       });
       list._forcesOpen = true;
 
+      // Cerrar al click fuera o Escape.
       const close = (e) => {
         if (!list.contains(e.target) && e.target !== btn) {
           list.style.display = "none";
@@ -145,44 +195,26 @@ export class ForcesItemSheet extends ItemSheet {
       document.addEventListener("pointerdown", close, true);
       document.addEventListener("keydown", onEsc);
     });
+  }
 
-    // Section pill buttons — toggle active state
-    html.find(".sec-add-btn").click(ev => {
-      const key    = ev.currentTarget.dataset.key;
-      const active = ev.currentTarget.classList.contains("sec-btn-active");
-      this.item.update({ [`system.secciones.${key}`]: !active });
-    });
-
-    // × remove button inside each section header
-    html.find(".sec-remove").click(ev => {
-      const key = ev.currentTarget.closest(".item-section").dataset.secKey;
-      this.item.update({ [`system.secciones.${key}`]: false });
-    });
-
-    html.find(".buff-add").click(this._onBuffAdd.bind(this));
-    html.find(".buff-remove").click(this._onBuffRemove.bind(this));
-
-    html.find(".buff-field").on("change", ev => {
-      const row   = ev.currentTarget.closest(".buff-row");
-      const idx   = parseInt(row.dataset.idx);
-      const field = ev.currentTarget.dataset.field;
-      const el    = ev.currentTarget;
-      const value = el.type === "checkbox" ? el.checked
-                  : el.type === "number"   ? (parseFloat(el.value) || 0)
-                  : el.value;
-      const buffs = foundry.utils.deepClone(this.item.system.buffs ?? []);
-      if (!buffs[idx]) return;
-      buffs[idx][field] = value;
-      this.item.update({ "system.buffs": buffs });
-    });
-
-    html.find(".uso-tick").click(this._onUsoTick.bind(this));
+  _onBuffFieldChange(ev) {
+    const row   = ev.currentTarget.closest(".buff-row");
+    const idx   = parseInt(row.dataset.idx);
+    const field = ev.currentTarget.dataset.field;
+    const el    = ev.currentTarget;
+    const value = el.type === "checkbox" ? el.checked
+                : el.type === "number"   ? (parseFloat(el.value) || 0)
+                : el.value;
+    const buffs = foundry.utils.deepClone(this.item.system.buffs ?? []);
+    if (!buffs[idx]) return;
+    buffs[idx][field] = value;
+    return this.item.update({ "system.buffs": buffs });
   }
 
   async _onUsoTick() {
     const curr = this.item.system.usosActuales ?? 0;
     const max  = this.item.system.usosPorDesc ?? 0;
-    this.item.update({ "system.usosActuales": Math.min(max, curr + 1) });
+    return this.item.update({ "system.usosActuales": Math.min(max, curr + 1) });
   }
 
   async _onBuffAdd() {

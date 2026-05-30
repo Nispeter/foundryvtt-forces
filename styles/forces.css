@@ -31,6 +31,9 @@
 }
 
 /* ── Window shell ── */
+/* L19: zoom global +10% para que el texto se lea mejor. zoom funciona en
+   Chromium/Electron (donde corre Foundry). Mantiene proporciones y reflow. */
+.forces.sheet .window-content { zoom: 1.10; }
 .forces.sheet .window-content {
   background: var(--bg-page);
   padding: 0;
@@ -651,21 +654,62 @@
 .forces.sheet .igroup-equipo{ background: linear-gradient(90deg, #e8f4ff, #f0f8ff); border-color: #a0c4e0; }
 .forces.sheet .igroup-caos  { background: linear-gradient(90deg, #f0e0ff, #f8eeff); border-color: #c090e0; }
 .forces.sheet .igroup-feat  { background: linear-gradient(90deg, #fffae0, #fffce8); border-color: #d4c060; }
+.forces.sheet .igroup-loot  { background: linear-gradient(90deg, #f8f0e0, #fdf6e8); border-color: #c4a060; }
 
+/* L9: feedback visual del drag-and-drop de items */
+.forces.sheet .item-entry-wrap[draggable="true"] { cursor: grab; }
+.forces.sheet .item-entry-wrap.forces-dragging { opacity: 0.4; }
+.forces.sheet .item-entry-wrap.forces-drop-target { outline: 2px dashed var(--clr-accent); outline-offset: -2px; }
+
+/* Tab Config: layout de las opciones */
+.forces.sheet .config-content {
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 16px;
+}
+.forces.sheet .config-row {
+  display: flex; flex-direction: column; gap: 4px;
+  background: #f4f8fd; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px;
+}
+.forces.sheet .config-label {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; color: var(--clr-accent2);
+}
+.forces.sheet .config-lbl { min-width: 150px; }
+.forces.sheet .config-input {
+  padding: 3px 6px; border: 1px solid #aac; border-radius: 4px;
+  background: #fff; font-size: 12px;
+}
+.forces.sheet .config-color { padding: 0; width: 40px; height: 24px; cursor: pointer; }
+.forces.sheet .config-hint { font-size: 10px; color: #778; font-style: italic; }
+
+/* L8: sort dropdown chiquito al lado de "+" en cada grupo de items */
+.forces.sheet .group-sort-sel {
+  font-size: 10px; padding: 1px 2px; max-width: 70px;
+  border: 1px solid #aaa; border-radius: 3px;
+  background: #fff; cursor: pointer; flex: 0 0 auto;
+  height: 20px; line-height: 18px;
+}
+
+/* "+" compacto: cuadradito al lado del sort */
 .forces.sheet .item-create-btn {
-  font-size: 9px; padding: 1px 6px;
+  width: 22px; height: 20px; padding: 0;
+  font-size: 14px; line-height: 18px;
+  text-align: center; flex: 0 0 22px;
   border: 1px solid; border-radius: var(--radius);
-  cursor: pointer; font-weight: 700; transition: all 0.12s;
+  cursor: pointer; font-weight: 900; transition: all 0.12s;
 }
 .forces.sheet .igroup-arma  .item-create-btn { border-color: #c04040; color: #c04040; background: #fff; }
 .forces.sheet .igroup-equipo .item-create-btn { border-color: var(--clr-accent2); color: var(--clr-accent2); background: #fff; }
 .forces.sheet .igroup-caos  .item-create-btn { border-color: var(--clr-caos); color: var(--clr-caos); background: #fff; }
 .forces.sheet .igroup-feat  .item-create-btn { border-color: #9a7800; color: #9a7800; background: #fff; }
+.forces.sheet .igroup-loot  .item-create-btn { border-color: #8a6d20; color: #8a6d20; background: #fff; }
 .forces.sheet .item-create-btn:hover { color: #fff !important; }
 .forces.sheet .igroup-arma   .item-create-btn:hover { background: #c04040; }
 .forces.sheet .igroup-equipo .item-create-btn:hover { background: var(--clr-accent2); }
 .forces.sheet .igroup-caos   .item-create-btn:hover { background: var(--clr-caos); }
 .forces.sheet .igroup-feat   .item-create-btn:hover { background: #9a7800; }
+.forces.sheet .igroup-loot   .item-create-btn:hover { background: #8a6d20; }
+.forces.sheet .item-entry.cat-loot { border-left-color: #8a6d20; }
 
 .forces.sheet .items-list { list-style: none; margin: 0; padding: 0; }
 .forces.sheet .item-entry {
@@ -903,6 +947,12 @@
   width: 38px; flex: 0 0 38px; font-size: 11px; font-weight: 700;
   text-align: center; padding: 2px 3px;
   border: 1px solid var(--border); border-radius: 3px;
+}
+.forces.sheet.item .buff-computed {
+  flex: 0 0 auto; font-size: 11px; font-weight: 900;
+  color: var(--clr-accent2); background: #eef4fb;
+  border: 1px solid #cbd9e8; border-radius: 3px;
+  padding: 2px 6px; min-width: 36px; text-align: center;
 }
 .forces.sheet.item .buff-activo { display: flex; align-items: center; flex: 0 0 auto; }
 .forces.sheet.item .buff-remove {
@@ -1204,6 +1254,48 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
 .forces.sheet .item-expand-trigger { cursor: pointer; transition: color 0.12s; }
 .forces.sheet .item-expand-trigger:hover { color: var(--clr-accent); }
 
+/* Popup global del tooltip de item — vive en document.body para sobrevivir
+   re-renders del sheet. Replica el look del .item-expand pero independiente. */
+.item-tooltip-popup {
+  position: fixed;
+  background: #fff;
+  border: 2px solid #2080d0;
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.10);
+  overflow: hidden;
+  min-width: 260px; max-width: 340px;
+  font-family: "Signika", "Arial", sans-serif;
+  font-size: 11px; color: #1a1a2e;
+  z-index: 100000;
+}
+.item-tooltip-popup .ihc-win-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  background: linear-gradient(135deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 100%), #0b3d6b;
+  border-bottom: 2px solid #d4a017;
+}
+.item-tooltip-popup .ihc-win-img {
+  width: 28px; height: 28px; border-radius: 4px; flex: 0 0 28px;
+  border: 1px solid rgba(255,255,255,0.3); object-fit: cover;
+}
+.item-tooltip-popup .ihc-win-name {
+  font-size: 13px; font-weight: 900; color: #fff; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.item-tooltip-popup .ihc-body { padding: 8px 10px; overflow-y: auto; max-height: 340px; }
+.item-tooltip-popup .ihc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.item-tooltip-popup .ihc-chip {
+  font-size: 10px; padding: 2px 6px; border-radius: 10px;
+  background: #eef4fb; border: 1px solid #cbd9e8; color: #334;
+}
+.item-tooltip-popup .ihc-desc {
+  margin-top: 6px; padding-top: 6px; border-top: 1px solid #e8ecf2;
+  font-size: 11px; color: #333; line-height: 1.4;
+}
+.item-tooltip-popup .ihc-cta {
+  margin: 6px 0 0; font-size: 10px; color: #888; font-style: italic;
+}
+
 /* ── ihc chips (item hover card) ── */
 .forces.sheet .ihc-chips {
   display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 5px;
@@ -1471,7 +1563,40 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   background: #f4f8fd; border: 2px solid #ccc; border-radius: var(--radius);
   padding: 5px 8px; min-width: 50px;
+  position: relative;
 }
+
+/* L14: tooltip de descomposición de stat — ahora ventana flotante (no CSS-only hover).
+   El JS la posiciona junto al cursor (.stat-breakdown-popup vive en <body>). */
+.stat-breakdown-popup {
+  position: fixed;
+  background: #fff; border: 1px solid #888; border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  padding: 7px 10px; min-width: 200px; max-width: 320px;
+  font-size: 11px; color: #222; font-family: "Signika", "Arial", sans-serif;
+  z-index: 100000; pointer-events: none;
+}
+.stat-breakdown-popup .sbd-title {
+  font-weight: 900; border-bottom: 1px solid #ddd;
+  padding-bottom: 3px; margin-bottom: 4px;
+}
+.stat-breakdown-popup .sbd-row {
+  display: flex; justify-content: space-between; gap: 8px; padding: 1px 0;
+}
+.stat-breakdown-popup .sbd-src { color: #444; }
+.stat-breakdown-popup .sbd-val { font-weight: 700; color: #1a1a2e; }
+.stat-breakdown-popup .sbd-section-title {
+  margin-top: 6px; padding-top: 4px; border-top: 1px solid #eee;
+  font-size: 10px; font-weight: 700; color: #777; text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.stat-breakdown-popup .sbd-row-maest .sbd-src { font-style: italic; color: #555; }
+.stat-breakdown-popup .sbd-row-maest .sbd-val { color: #777; }
+.stat-breakdown-popup .sbd-warn {
+  color: #b00; font-size: 10px; margin-top: 4px;
+  padding-top: 4px; border-top: 1px solid #fcc;
+}
+.forces.sheet .bio-hint { font-size: 9px; color: #888; font-weight: 400; }
 .forces.sheet .stat-disp-cell.rank-s { border-color: var(--clr-rank-s); background: linear-gradient(135deg, #ffe8e8, #fff0f0); }
 .forces.sheet .stat-disp-cell.rank-a { border-color: var(--clr-rank-a); background: linear-gradient(135deg, #fff0e0, #fff8f0); }
 .forces.sheet .stat-disp-cell.rank-b { border-color: var(--clr-rank-b); background: linear-gradient(135deg, #e8f0ff, #f0f4ff); }
@@ -1517,6 +1642,26 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
   background: linear-gradient(135deg, #ffe8e8, #ffd0d0);
 }
 .forces.sheet .stat-disp-cell.rank-splus .stat-disp-rank { color: #8a0000; }
+
+/* ── SS rank styles (rank-ss) — paleta dorada/negra, encima de S+ ── */
+.forces.sheet .car-circle.rank-ss {
+  background: linear-gradient(135deg, #ffd700 0%, #6b4f00 100%);
+  border-color: #4a3700;
+}
+.forces.sheet .car-circle.rank-ss .car-rank,
+.forces.sheet .car-circle.rank-ss .car-mod-sm { color: #1a1200; }
+.forces.sheet .rank-badge.rank-ss {
+  border-color: #6b4f00; background: linear-gradient(135deg, #ffea7c, #6b4f00);
+}
+.forces.sheet .rank-badge.rank-ss .badge-rank,
+.forces.sheet .rank-badge.rank-ss .badge-mod { color: #1a1200; }
+.forces.sheet .rank-chip.rank-ss { background: #6b4f00; color: #ffd700; }
+.forces.sheet .mrank-btn.rank-ss { background: #6b4f00; border-color: #2e2100; color: #ffd700; }
+.forces.sheet .stat-disp-cell.rank-ss {
+  border-color: #6b4f00;
+  background: linear-gradient(135deg, #fff4cf, #ffe17a);
+}
+.forces.sheet .stat-disp-cell.rank-ss .stat-disp-rank { color: #6b4f00; }
 
 /* ── Movement badge: velocity rank letter ── */
 .forces.sheet .mov-rank {

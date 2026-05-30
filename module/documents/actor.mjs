@@ -1,241 +1,210 @@
-import { puntosToMod, ForcesActorData } from "../data/actor-data.mjs";
+// ForcesActor: clase de documento Actor + métodos de roll de alto nivel.
+// La lógica de derivación vive en data/actor-data.mjs; aquí solo aplicamos
+// buffs de items y construimos tiradas que delegan en helpers.
 
-function addToPath(obj, path, delta) {
-  if (!delta || delta === 0) return;
-  const parts = path.split(".");
-  let cur = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    cur = cur?.[parts[i]];
-    if (cur == null) return;
-  }
-  const last = parts[parts.length - 1];
-  if (last in cur && typeof cur[last] === "number") cur[last] += delta;
-}
+import { STAT_KEYS, SKILL_STAT, REACCION_STAT, REACCION_LABEL,
+         DEFENSA_CORPORAL_STATS, DEFENSA_CAOTICA_STATS,
+         MOVIMIENTO_BASE, MOVIMIENTO_MINIMO, MOVIMIENTO_BONUS_ANILLOS, ANILLOS_PARA_BONUS,
+         MAEST_BONUS } from "../constants/stats.mjs";
+import { addToPath } from "../helpers/paths.mjs";
+import { d20Formula, modeSuffix, bonusSuffix } from "../helpers/rolls.mjs";
+import { rollDialog } from "../dialogs/roll-dialog.mjs";
+import { levelUpDialog, shortRestDialog, recargaDialog } from "../dialogs/rest-dialogs.mjs";
+import { buildUseItemCard, resolveActiveSections } from "../chat/use-item-card.mjs";
 
-// ─── Roll dialog (exported so chat handlers in forces.mjs can reuse it) ──
-export async function rollDialog(label) {
-  const click = window._forcesLastClick ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  const W = 340, H = 190;
-  let left = click.x + 14;
-  if (left + W > window.innerWidth - 8) left = click.x - W - 14;
-  left = Math.max(8, Math.round(left));
-  let top = click.y - 24;
-  if (top + H > window.innerHeight - 8) top = window.innerHeight - H - 8;
-  top = Math.max(8, Math.round(top));
+// Re-exports para que forces.mjs (y compatibilidad externa) pueda seguir importando
+// rollDialog y d20Formula desde aquí.
+export { rollDialog, d20Formula };
 
-  return new Promise(resolve => {
-    new Dialog({
-      title: `🎲 ${label}`,
-      content: `<form class="forces-roll-dlg">
-        <div class="frd-modes">
-          <label class="frd-opt frd-normal">
-            <input type="radio" name="mode" value="normal" checked /> Normal
-          </label>
-          <label class="frd-opt frd-adv">
-            <input type="radio" name="mode" value="adv" /> ↑ Ventaja
-          </label>
-          <label class="frd-opt frd-dis">
-            <input type="radio" name="mode" value="dis" /> ↓ Desventaja
-          </label>
-        </div>
-        <div class="frd-bonus-row">
-          <span class="frd-lbl">Bonus adicional</span>
-          <input type="number" name="bonus" value="0" class="frd-bonus" autofocus />
-        </div>
-      </form>`,
-      buttons: {
-        roll: {
-          icon: "<i class='fas fa-dice-d20'></i>", label: "Tirar",
-          callback: html => resolve({
-            mode:  html.find("[name=mode]:checked").val() || "normal",
-            bonus: parseInt(html.find("[name=bonus]").val()) || 0,
-          }),
-        },
-        cancel: {
-          icon: "<i class='fas fa-times'></i>", label: "Cancelar",
-          callback: () => resolve(null),
-        },
-      },
-      default: "roll",
-      close: () => resolve(null),
-    }, { classes: ["dialog", "forces-roll-dlg-win"], left, top }).render(true);
+// ─── Helpers internos ──────────────────────────────────────────────────────
+
+// Patrón compartido: pide modo+bonus, evalúa d20+mod, manda flavor a chat.
+// `label`         → título del diálogo.
+// `flavorBuilder` → función (opts) => string para el flavor del mensaje.
+async function _rollD20WithDialog(actor, baseMod, label, flavorBuilder) {
+  const opts = await rollDialog(label);
+  if (!opts) return null;
+  const roll = new Roll(d20Formula(baseMod, opts));
+  await roll.evaluate();
+  await roll.toMessage({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    flavor:  flavorBuilder(opts),
   });
+  return roll;
 }
 
-export function d20Formula(baseMod, opts) {
-  const t = baseMod + (opts?.bonus || 0);
-  const s = t >= 0 ? `+${t}` : `${t}`;
-  if (opts?.mode === "adv") return `{2d20kh1}${s}`;
-  if (opts?.mode === "dis") return `{2d20kl1}${s}`;
-  return `1d20${s}`;
-}
+// Pretty-print de modificador con signo.
+const _signed = m => `${m >= 0 ? "+" : ""}${m}`;
 
-function modeSuffix(opts) {
-  return opts?.mode === "adv" ? " [Ventaja]" : opts?.mode === "dis" ? " [Desventaja]" : "";
-}
-function bonusSuffix(opts) {
-  if (!opts?.bonus) return "";
-  return ` +bns ${opts.bonus >= 0 ? "+" : ""}${opts.bonus}`;
-}
+// ─── ForcesActor ───────────────────────────────────────────────────────────
 
-const STAT_ABBR = {
-  fuerza:"Fr", aguante:"Agu", velocidad:"Vel", tecnica:"Tec",
-  cognicion:"Cog", carisma:"Car", instintos:"Ins", caos:"Cao",
-};
-
-// ─────────────────────────────────────────────────────────────────────────
 export class ForcesActor extends Actor {
   prepareDerivedData() {
     super.prepareDerivedData();
     this._applyItemBuffs();
   }
 
+  // Suma buffs de items equipados (excepto armas: ahí los buffs no se aplican
+  // hasta empuñarse — comportamiento heredado pre-refactor). Si algún buff
+  // afecta a un modificador de característica, se recomputa la cadena derivada.
   _applyItemBuffs() {
     const sys = this.system;
     const car = sys.caracteristicas;
     let charModChanged = false;
 
+    // Acumular bonificaciones estadísticas planas (DF, ataque, reacción) de
+    // items equipados. Se exponen como sys.bonifEquipados.{df, ataque, reaccion}
+    // para que rollAtaque/rollReaccion y la defensa corporal puedan sumarlos.
+    // Armas no aportan estos bonus pasivos (sus stats van en el daño/hit).
+    const bonif = { df: 0, ataque: 0, reaccion: 0 };
+
     for (const item of this.items) {
       if (!item.system.equipado) continue;
       if ((item.system.categoria ?? "") === "arma") continue;
+
+      bonif.df       += Number(item.system.bonusDf)       || 0;
+      bonif.ataque   += Number(item.system.bonusAtaque)   || 0;
+      bonif.reaccion += Number(item.system.bonusReaccion) || 0;
+
       for (const buff of (item.system.buffs ?? [])) {
         if (!buff.activo || !buff.target) continue;
+
+        // delta = baseVal + scaleMult * (mod stat | nivel | 0)
         let delta = Number(buff.baseVal) || 0;
         if (buff.scaleVar && buff.scaleVar !== "none") {
-          const sv = buff.scaleVar === "nivel" ? (sys.nivel ?? 0) : (car[buff.scaleVar]?.modificador ?? 0);
+          const sv = buff.scaleVar === "nivel"
+            ? (sys.nivel ?? 0)
+            : (car[buff.scaleVar]?.modificador ?? 0);
           delta += (Number(buff.scaleMult) || 1) * sv;
         }
         delta = Math.round(delta);
         if (!delta) continue;
 
         if (buff.target.startsWith("caracteristicas.") && buff.target.endsWith(".bonus")) {
+          // Atajo: aplicamos al modificador derivado directamente (no a bonus base)
+          // para que afecte SOLO mientras el item esté equipado. Marca para recomputar.
           const carKey = buff.target.slice("caracteristicas.".length, -".bonus".length);
-          if (car[carKey]) { car[carKey].modificador += delta; charModChanged = true; }
+          if (car[carKey]) {
+            car[carKey].modificador += delta;
+            charModChanged = true;
+            // L14: registrar contribución del item para el breakdown.
+            sys.statBreakdown?.[carKey]?.push({ source: `Item: ${item.name}`, value: delta });
+          }
         } else {
           addToPath(sys, buff.target, delta);
         }
       }
     }
 
+    // Si cambiaron mods de car, recomputar defensas/movimiento/skills.
+    // OJO: este recompute es deliberadamente PARCIAL y mirror del comportamiento
+    // pre-refactor: NO toca EC máx ni vidaDado, para que buffs que aporten
+    // directamente a EC máx (vía addToPath) no se sobreescriban.
     if (charModChanged) {
-      sys.defensas.defensaCorporal = Math.max(1, 10 + car.aguante.modificador + car.velocidad.modificador);
-      sys.defensas.defensaCaotica  = Math.max(1, 10 + car.caos.modificador   + car.tecnica.modificador);
-      sys.movimiento = Math.max(10, 10 * car.velocidad.modificador + 30 + (sys.bonusMovimiento ?? 0));
-      if ((sys.defensas.anillos?.value ?? 0) >= 100) sys.movimiento += 20;
-      for (const [hab, carKey] of Object.entries(ForcesActorData.SKILL_STAT)) {
+      const sum = keys => keys.reduce((acc, k) => acc + (car[k]?.modificador ?? 0), 0);
+      sys.defensas.defensaCorporal = Math.max(1, 10 + sum(DEFENSA_CORPORAL_STATS));
+      sys.defensas.defensaCaotica  = Math.max(1, 10 + sum(DEFENSA_CAOTICA_STATS));
+      sys.movimiento = Math.max(MOVIMIENTO_MINIMO,
+        10 * car.velocidad.modificador + MOVIMIENTO_BASE + (sys.bonusMovimiento ?? 0));
+      if ((sys.defensas.anillos?.value ?? 0) >= ANILLOS_PARA_BONUS) {
+        sys.movimiento += MOVIMIENTO_BONUS_ANILLOS;
+      }
+      for (const [hab, carKey] of Object.entries(SKILL_STAT)) {
         const skill = sys.habilidades[hab];
         if (skill) skill.total = (car[carKey]?.modificador ?? 0) + (skill.experticia ?? 0);
       }
     }
+
+    // Expone bonificaciones planas para rolls de atk/reacción (línea 12 del backlog).
+    // Se publica siempre (incluso si son 0) para que el sheet pueda mostrarlas.
+    // bonusDf se suma DESPUÉS del recompute para que no sea clobbered.
+    sys.bonifEquipados = bonif;
+    sys.defensas.defensaCorporal = Math.max(1, sys.defensas.defensaCorporal + bonif.df);
+
+    // L6: si el mod de caos cambió por un buff, EC máx debería reflejarlo
+    // (la fórmula canónica es mod × 7). Antes esto se quedaba "stuck" en el valor
+    // base y los usuarios veían inconsistencia entre el modificador y los recursos.
+    // Tomamos max() para no romper buffs que aporten directamente a EC máx vía addToPath.
+    if (charModChanged) {
+      const ecBaseDesdeNuevoMod = Math.max(0, 7 * car.caos.modificador);
+      sys.defensas.energiaCaotica.max = Math.max(sys.defensas.energiaCaotica.max, ecBaseDesdeNuevoMod);
+    }
   }
 
-  // Flat roll data for formula evaluation (post-derivation modifiers)
   getRollData() {
+    // Plano de modificadores para fórmulas tipo "1d20+@fuerza".
     const car = this.system.caracteristicas;
-    return {
-      nivel:     this.system.nivel,
-      fuerza:    car.fuerza.modificador,
-      aguante:   car.aguante.modificador,
-      velocidad: car.velocidad.modificador,
-      tecnica:   car.tecnica.modificador,
-      cognicion: car.cognicion.modificador,
-      carisma:   car.carisma.modificador,
-      instintos: car.instintos.modificador,
-      caos:      car.caos.modificador,
-    };
+    const out = { nivel: this.system.nivel };
+    for (const k of STAT_KEYS) out[k] = car[k].modificador;
+    return out;
   }
 
-  // ─── Roll helpers ──────────────────────────────────────────────────────
+  // ── Tiradas básicas (todas siguen el patrón _rollD20WithDialog) ──
 
   async rollCaracteristica(carKey) {
     const car   = this.system.caracteristicas[carKey];
     const label = `${carKey.charAt(0).toUpperCase()}${carKey.slice(1)} (${car.rankDisplay})`;
-    const opts  = await rollDialog(label);
-    if (!opts) return null;
-    const roll  = new Roll(d20Formula(car.modificador, opts));
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>${label}</strong> mod ${car.modificador >= 0 ? "+" : ""}${car.modificador}${bonusSuffix(opts)}${modeSuffix(opts)}`,
-    });
-    return roll;
+    return _rollD20WithDialog(this, car.modificador, label, opts =>
+      `<strong>${label}</strong> mod ${_signed(car.modificador)}${bonusSuffix(opts)}${modeSuffix(opts)}`
+    );
   }
 
   async rollCaos() {
     const car   = this.system.caracteristicas.caos;
     const label = `Caos (${car.rankDisplay})`;
-    const opts  = await rollDialog(label);
-    if (!opts) return null;
-    const roll  = new Roll(d20Formula(car.modificador, opts));
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>Tirada de Caos</strong> mod ${car.modificador >= 0 ? "+" : ""}${car.modificador}${bonusSuffix(opts)}${modeSuffix(opts)}`,
-    });
-    return roll;
+    return _rollD20WithDialog(this, car.modificador, label, opts =>
+      `<strong>Tirada de Caos</strong> mod ${_signed(car.modificador)}${bonusSuffix(opts)}${modeSuffix(opts)}`
+    );
   }
 
   async rollMovimiento() {
     const car   = this.system.caracteristicas.velocidad;
     const label = `Velocidad / Movimiento (${car.rankDisplay})`;
-    const opts  = await rollDialog(label);
-    if (!opts) return null;
-    const roll  = new Roll(d20Formula(car.modificador, opts));
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>Velocidad</strong> — mov ${this.system.movimiento} pies${bonusSuffix(opts)}${modeSuffix(opts)}`,
-    });
-    return roll;
+    return _rollD20WithDialog(this, car.modificador, label, opts =>
+      `<strong>Velocidad</strong> — mov ${this.system.movimiento} pies${bonusSuffix(opts)}${modeSuffix(opts)}`
+    );
   }
 
   async rollHabilidad(habKey) {
     const hab   = this.system.habilidades[habKey];
-    const label = `${habKey} (total ${hab.total >= 0 ? "+" : ""}${hab.total})`;
-    const opts  = await rollDialog(label);
-    if (!opts) return null;
-    const roll  = new Roll(d20Formula(hab.total, opts));
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>${habKey}</strong> total ${hab.total >= 0 ? "+" : ""}${hab.total}${bonusSuffix(opts)}${modeSuffix(opts)}`,
-    });
-    return roll;
+    const label = `${habKey} (total ${_signed(hab.total)})`;
+    return _rollD20WithDialog(this, hab.total, label, opts =>
+      `<strong>${habKey}</strong> total ${_signed(hab.total)}${bonusSuffix(opts)}${modeSuffix(opts)}`
+    );
   }
 
   async rollAtaque(tipo = "fuerza", etiqueta = "") {
-    const car   = this.system.caracteristicas[tipo];
-    const label = `${etiqueta || "Ataque"} (${tipo})`;
-    const opts  = await rollDialog(label);
-    if (!opts) return null;
-    const roll  = new Roll(d20Formula(car.modificador, opts));
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>${etiqueta || "Ataque"}</strong> (${tipo}) mod ${car.modificador >= 0 ? "+" : ""}${car.modificador}${bonusSuffix(opts)}${modeSuffix(opts)}`,
-    });
-    return roll;
+    const car      = this.system.caracteristicas[tipo];
+    const bonifAtk = this.system.bonifEquipados?.ataque ?? 0;
+    const base     = car.modificador + bonifAtk;
+    const label    = `${etiqueta || "Ataque"} (${tipo})`;
+    const equipTag = bonifAtk ? ` (eq ${_signed(bonifAtk)})` : "";
+    return _rollD20WithDialog(this, base, label, opts =>
+      `<strong>${etiqueta || "Ataque"}</strong> (${tipo}) mod ${_signed(base)}${equipTag}${bonusSuffix(opts)}${modeSuffix(opts)}`
+    );
   }
 
   async rollReaccion(tipo) {
-    const statMap  = { esquivar: "instintos", fortaleza: "aguante", resistencia: "caos" };
-    const labelMap = { esquivar: "Esquivar", fortaleza: "Fortaleza", resistencia: "Resistencia" };
-    const carKey   = statMap[tipo] ?? "instintos";
-    const mod      = this.system.caracteristicas[carKey].modificador;
-    const label    = `Reacción: ${labelMap[tipo] ?? tipo}`;
+    const carKey   = REACCION_STAT[tipo] ?? "instintos";
+    const bonifRea = this.system.bonifEquipados?.reaccion ?? 0;
+    const mod      = this.system.caracteristicas[carKey].modificador + bonifRea;
+    const label    = `Reacción: ${REACCION_LABEL[tipo] ?? tipo}`;
+    const equipTag = bonifRea ? ` (eq ${_signed(bonifRea)})` : "";
     const opts     = await rollDialog(label);
     if (!opts) return null;
     const roll     = new Roll(d20Formula(mod, opts));
     await roll.evaluate();
 
-    let flavor = `<strong>${label}</strong> mod ${mod >= 0 ? "+" : ""}${mod}${bonusSuffix(opts)}${modeSuffix(opts)}`;
+    // Reglas extra de reacciones: 20+ éxito total, 1+ éxito parcial.
+    let flavor = `<strong>${label}</strong> mod ${_signed(mod)}${equipTag}${bonusSuffix(opts)}${modeSuffix(opts)}`;
     if      (roll.total >= 20) flavor += " — <em>¡Éxito total!</em>";
-    else if (roll.total >   0) flavor += " — <em>Éxito parcial (enemigo -1d4)</em>";
+    else if (roll.total > 0)   flavor += " — <em>Éxito parcial (enemigo -1d4)</em>";
 
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this }), flavor });
     return roll;
   }
 
+  // Tirada caos + daño embebido si el item tiene dadoDanio.
   async rollCaosControl(item) {
     const data  = item.system;
     const mod   = this.system.caracteristicas.caos.modificador;
@@ -245,7 +214,7 @@ export class ForcesActor extends Actor {
     const roll  = new Roll(d20Formula(mod, opts));
     await roll.evaluate();
 
-    let flavor = `<strong>${item.name}</strong> — ${data.costoCaos}✦ EC — mod ${mod >= 0 ? "+" : ""}${mod}${bonusSuffix(opts)}${modeSuffix(opts)}`;
+    let flavor = `<strong>${item.name}</strong> — ${data.costoCaos}✦ EC — mod ${_signed(mod)}${bonusSuffix(opts)}${modeSuffix(opts)}`;
     if (data.dadoDanio) {
       const dmgRoll = new Roll(`${data.dadoDanio}${data.bonusDanio ? `+${data.bonusDanio}` : ""}`);
       await dmgRoll.evaluate();
@@ -261,207 +230,49 @@ export class ForcesActor extends Actor {
     const carKey = m.caracteristica || "cognicion";
     const car    = this.system.caracteristicas[carKey];
     if (!car) return null;
-    const nombre = m.nombre || `Maestría ${m.rank}`;
-    const label  = `${nombre} [${m.rank}]`;
-    const opts   = await rollDialog(label);
-    if (!opts) return null;
-    const roll   = new Roll(d20Formula(car.modificador, opts));
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      flavor:  `<strong>${nombre}</strong> [${m.rank}] — ${carKey} (${car.rankDisplay}) mod ${car.modificador >= 0 ? "+" : ""}${car.modificador}${bonusSuffix(opts)}${modeSuffix(opts)}`,
-    });
-    return roll;
+
+    // car.modificador NO incluye bonus de maestrías (cambio de diseño): el bonus
+    // de la maestría es plano según su rank y se aplica SOLO en su propia tirada.
+    const maestBonus = MAEST_BONUS[m.rank] ?? 0;
+    const total      = car.modificador + maestBonus;
+    const nombre     = m.nombre || `Maestría ${m.rank}`;
+    const label      = `${nombre} [${m.rank}]`;
+    const breakdown  = ` [${carKey} ${_signed(car.modificador)} + maestría [${m.rank}] ${_signed(maestBonus)}]`;
+    return _rollD20WithDialog(this, total, label, opts =>
+      `<strong>${nombre}</strong> [${m.rank}] — total ${_signed(total)}${breakdown}${bonusSuffix(opts)}${modeSuffix(opts)}`
+    );
   }
+
+  // ── Usar item: tarjeta de chat con botones ────────────────────────────────
 
   async useItem(item) {
     const sys     = item.system;
     const isOwner = this.isOwner;
+    const sec     = resolveActiveSections(sys);
 
-    const sec = { ...(sys.secciones ?? {}) };
-    if (sys.descripcion)                              sec.descripcion    = true;
-    if (sys.dadoDanio)                                sec.danioEfecto    = true;
-    if (sys.bonusHit || (sys.numAtaques ?? 1) > 1 || sys.atacarCon || sys.atacarCon2) sec.hit = true;
-    if (sys.savingThrow)                              sec.savingThrow    = true;
-    if (sys.usosPorDesc)                              sec.usos           = true;
-    if ((sys.buffs ?? []).length)                     sec.buffs          = true;
-    if (sys.bonusDf || sys.bonusReaccion || sys.bonusAtaque || sys.slots) sec.bonEstadistica = true;
-    if ((sys.nivelReq ?? 1) > 1 || sys.claseReq)     sec.featClase      = true;
-    if (sys.categoria === "caos")                     sec.caosControl    = true;
-    if (sys.dadoLibreFormula || sys.dadoLibreTabla)   sec.dadoLibre      = true;
-    if (sys.areaEfecto)                               sec.areaEfecto     = true;
-
+    // Consumir 1 uso si quedan.
     const max    = sys.usosPorDesc ?? 0;
     let usesCurr = sys.usosActuales ?? 0;
-
     if (isOwner && max > 0) {
-      if (usesCurr <= 0)
-        return void ui.notifications.warn(`${item.name}: Sin usos restantes (0/${max}).`);
+      if (usesCurr <= 0) {
+        ui.notifications.warn(`${item.name}: Sin usos restantes (0/${max}).`);
+        return;
+      }
       usesCurr--;
       await item.update({ "system.usosActuales": usesCurr });
     }
+
+    // Consumir EC si es un caos control con coste.
     if (isOwner && sec.caosControl && (sys.costoCaos ?? 0) > 0) {
       const ec = this.system.defensas.energiaCaotica.value ?? 0;
-      await this.update({ "system.defensas.energiaCaotica.value": Math.max(0, ec - sys.costoCaos) });
+      await this.update({
+        "system.defensas.energiaCaotica.value": Math.max(0, ec - sys.costoCaos),
+      });
     }
 
-    // Declare everything before building tags/rollRows
-    const car      = this.system.caracteristicas;
-    const cMod     = car.caos.modificador;
-    const aId      = this.id;
-    const iId      = item.id;
-    const tags     = [];
-    const rollRows = [];
-
-    // ── Tags ──
-    if (sys.categoria === "tarjeta" && sys.costoTarjeta)
-      tags.push(`<span class="fci-tag fci-dur">🃏 ${sys.costoTarjeta} slot</span>`);
-    if (sec.caosControl && sys.costoCaos)
-      tags.push(`<span class="fci-tag fci-caos-cost">✦ ${sys.costoCaos} EC${sys.esReaccion ? " · ⚡ Reacción" : ""}</span>`);
-    if (sec.duracion && sys.duracion)
-      tags.push(`<span class="fci-tag fci-dur">⏱ ${sys.duracion}</span>`);
-    if (sec.rango && sys.rango)
-      tags.push(`<span class="fci-tag fci-dur">📐 ${sys.rango} ft</span>`);
-    if (sec.areaEfecto && sys.areaEfecto)
-      tags.push(`<span class="fci-tag fci-dur">💥 ${sys.areaEfecto} ft${sys.areaEfectoTipo ? ` (${sys.areaEfectoTipo})` : ""}</span>`);
-    if (sec.usos && max > 0)
-      tags.push(`<span class="fci-tag fci-uses-disp">🔄 ${usesCurr}/${max} usos</span>`);
-    if (sec.savingThrow)
-      tags.push(`<span class="fci-tag fci-save-tag">🛡 ${sys.savingThrow || "ST"} DC${sys.savingThrowDC}</span>`);
-    if (sec.featClase && (sys.nivelReq > 1 || sys.claseReq))
-      tags.push(`<span class="fci-tag fci-feat-tag">⭐ ${[sys.claseReq, sys.nivelReq > 1 ? "Nv." + sys.nivelReq : ""].filter(Boolean).join(" ")}</span>`);
-
-    // ── Stat bonus row ──
-    const bonuses = [];
-    if (sec.bonEstadistica) {
-      if (sys.bonusDf)       bonuses.push(`DF Corp <strong>+${sys.bonusDf}</strong>`);
-      if (sys.bonusReaccion) bonuses.push(`Reac. <strong>+${sys.bonusReaccion}</strong>`);
-      if (sys.bonusAtaque)   bonuses.push(`Ataque <strong>+${sys.bonusAtaque}</strong>`);
-      if (sys.slots)         bonuses.push(`Slots <strong>+${sys.slots}</strong>`);
-    }
-    const bonRow = bonuses.length ? `<div class="fci-bonus-row">${bonuses.join(" · ")}</div>` : "";
-
-    // ── Roll rows ──
-    if (sec.hit) {
-      const hit   = sys.bonusHit ?? 0;
-      const n     = sys.numAtaques ?? 1;
-      const stat1 = sys.atacarCon  || null;
-      const stat2 = sys.atacarCon2 || null;
-      const btns  = [];
-      if (stat1) {
-        const c = car[stat1] ?? car.fuerza;
-        const m = c.modificador + hit;
-        btns.push(`<button class="fci-roll-btn" data-action="roll-attack" data-tipo="${stat1}" data-actor-id="${aId}" data-item-id="${iId}">🗡 ${STAT_ABBR[stat1] ?? stat1} ${m >= 0 ? "+" : ""}${m}</button>`);
-      }
-      if (stat2) {
-        const c = car[stat2] ?? car.tecnica;
-        const m = c.modificador + hit;
-        btns.push(`<button class="fci-roll-btn" data-action="roll-attack" data-tipo="${stat2}" data-actor-id="${aId}" data-item-id="${iId}">⚙ ${STAT_ABBR[stat2] ?? stat2} ${m >= 0 ? "+" : ""}${m}</button>`);
-      }
-      if (btns.length) {
-        rollRows.push(`
-          <div class="fci-roll-row">
-            <span class="fci-dmg-label">Ataque${n > 1 ? ` ×${n}` : ""}${hit ? ` (+${hit} hit)` : ""}</span>
-            <div class="fci-btn-group">${btns.join("")}</div>
-          </div>`);
-      }
-    }
-    if (sec.danioEfecto && sys.dadoDanio) {
-      const diceStr = sys.bonusDanio ? `${sys.dadoDanio}+${sys.bonusDanio}` : sys.dadoDanio;
-      rollRows.push(`
-        <div class="fci-roll-row">
-          <span class="fci-dmg-label">Daño:</span>
-          <strong class="fci-dmg-dice">${diceStr}</strong>
-          ${sys.danioTipo ? `<span class="fci-dmg-type">(${sys.danioTipo})</span>` : ""}
-          <button class="fci-roll-btn" data-action="roll-damage" data-actor-id="${aId}" data-item-id="${iId}">🎲 Tirar daño</button>
-        </div>`);
-    }
-    if (sec.dadoLibre) {
-      const dlLabel = sys.dadoLibreLabel || "Tirada libre";
-      if (sys.dadoLibreTabla) {
-        const entries = (sys.dadoLibreEntradas ?? "").split("\n").filter(e => e.trim());
-        if (entries.length) {
-          rollRows.push(`
-            <div class="fci-roll-row">
-              <span class="fci-dmg-label">📋 ${dlLabel}</span>
-              <strong class="fci-dmg-dice">1d${entries.length}</strong>
-              <button class="fci-roll-btn" data-action="roll-tabla"
-                      data-actor-id="${aId}" data-item-id="${iId}">🎲 Lanzar en tabla</button>
-            </div>`);
-        }
-      } else if (sys.dadoLibreFormula) {
-        rollRows.push(`
-          <div class="fci-roll-row">
-            <span class="fci-dmg-label">${dlLabel}</span>
-            <strong class="fci-dmg-dice">${sys.dadoLibreFormula}</strong>
-            <button class="fci-roll-btn" data-action="roll-dado-libre"
-                    data-formula="${sys.dadoLibreFormula}"
-                    data-label="${dlLabel.replace(/"/g, "&quot;")}">🎲 Tirar</button>
-          </div>`);
-      }
-    }
-    if (sec.caosControl) {
-      rollRows.push(`
-        <div class="fci-roll-row">
-          <span class="fci-dmg-label">Caos Control</span>
-          <button class="fci-roll-btn fci-roll-caos" data-action="roll-caos" data-actor-id="${aId}" data-item-id="${iId}">
-            ✦ Tirar Caos ${cMod >= 0 ? "+" : ""}${cMod}
-          </button>
-        </div>`);
-    }
-    if (sec.savingThrow) {
-      const stStat  = sys.savingThrowStat || "instintos";
-      const stLabel = sys.savingThrow || "Saving Throw";
-      rollRows.push(`
-        <div class="fci-roll-row">
-          <span class="fci-dmg-label">🛡 ${stLabel} DC ${sys.savingThrowDC}</span>
-          <button class="fci-roll-btn" data-action="roll-saving-throw" data-stat="${stStat}" data-dc="${sys.savingThrowDC}">Tirar</button>
-        </div>`);
-    }
-    if (sec.areaEfecto && sys.areaEfecto) {
-      const tipoNorm = (sys.areaEfectoTipo || "esfera").toLowerCase()
-        .replace(/[áà]/g, "a").replace(/[éè]/g, "e").replace(/[íì]/g, "i")
-        .replace(/[óò]/g, "o").replace(/[úù]/g, "u").replace(/\s+/g, "");
-      rollRows.push(`
-        <div class="fci-roll-row">
-          <span class="fci-dmg-label">💥 ${sys.areaEfecto} ft${sys.areaEfectoTipo ? ` · ${sys.areaEfectoTipo}` : ""}</span>
-          <button class="fci-roll-btn fci-area-btn" data-action="place-area-template"
-                  data-dist="${sys.areaEfecto}" data-tipo="${tipoNorm}">
-            🎯 Colocar plantilla
-          </button>
-        </div>`);
-    }
-    if (sec.usos && max > 0 && isOwner) {
-      const refundDisabled = usesCurr >= max ? " disabled" : "";
-      rollRows.push(`
-        <div class="fci-roll-row">
-          <span class="fci-dmg-label">Usos restantes: ${usesCurr}/${max}</span>
-          <button class="fci-roll-btn fci-refund-btn" data-action="refund-uses" data-actor-id="${aId}" data-item-id="${iId}"${refundDisabled}>
-            ↺ Restaurar uso
-          </button>
-        </div>`);
-    }
-
-    const catLabel = { arma:"Arma", armadura:"Armadura", equipo:"Equipo", consumible:"Consumible",
-                       feat:"Feat / Clase", caos:"Caos Control", tarjeta:"Tarjeta" }[sys.categoria] ?? sys.categoria;
-    const catCss   = { arma:"fci-cat-arma", armadura:"fci-cat-armor", equipo:"fci-cat-equipo",
-                       consumible:"fci-cat-consumible", feat:"fci-cat-feat", caos:"fci-cat-caos",
-                       tarjeta:"fci-cat-tarjeta" }[sys.categoria] ?? "";
-
-    const content = `
-      <div class="forces-chat-item ${catCss}">
-        <div class="fci-header">
-          <img class="fci-img" src="${item.img}" />
-          <div class="fci-meta">
-            <div class="fci-name">${item.name}</div>
-            <div class="fci-category">${catLabel}</div>
-            ${tags.length ? `<div class="fci-tags">${tags.join("")}</div>` : ""}
-          </div>
-        </div>
-        ${bonRow}
-        ${sys.descripcion ? `<div class="fci-desc">${sys.descripcion}</div>` : ""}
-        ${rollRows.join("")}
-      </div>`;
+    const content = buildUseItemCard({
+      actor: this, item, sec, usesCurr, max, isOwner,
+    });
 
     return ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: this }),
@@ -470,160 +281,13 @@ export class ForcesActor extends Actor {
     });
   }
 
-  async levelUp() {
-    const dado = this.system.vidaDado ?? 6;
-    const mod  = this.system.caracteristicas.aguante.modificador;
-    const avg  = Math.max(1, Math.floor(dado / 2) + 1 + mod);
-    const lvl  = this.system.nivel ?? 1;
-    const maxHP = this.system.defensas.vida.max ?? 0;
-    const curHP = this.system.defensas.vida.value ?? 0;
+  // ── Descansos / nivel-up (delegan en módulo dialogs) ──────────────────────
 
-    return new Promise(resolve => {
-      new Dialog({
-        title: `⬆ Subir de Nivel (${lvl} → ${lvl + 1})`,
-        content: `<div style="padding:10px 4px">
-          <p>Dado de vida: <strong>1d${dado}</strong> + mod Aguante (${mod >= 0 ? "+" : ""}${mod})</p>
-          <p>Promedio: <strong>${avg} PV</strong></p>
-        </div>`,
-        buttons: {
-          roll: {
-            icon: "<i class='fas fa-dice'></i>", label: "Tirar dado",
-            callback: async () => {
-              const roll = new Roll(`1d${dado}+${mod}`);
-              await roll.evaluate();
-              const gained = Math.max(1, roll.total);
-              await this.update({
-                "system.nivel":                 Math.min(20, lvl + 1),
-                "system.defensas.vida.max":     maxHP + gained,
-                "system.defensas.vida.value":   curHP + gained,
-              });
-              await roll.toMessage({
-                speaker: ChatMessage.getSpeaker({ actor: this }),
-                flavor:  `<strong>¡Nivel ${lvl + 1}!</strong> +${gained} PV máx (1d${dado}${mod >= 0 ? "+" : ""}${mod})`,
-              });
-              resolve(gained);
-            },
-          },
-          avg: {
-            icon: "<i class='fas fa-calculator'></i>", label: `Promedio (+${avg} PV)`,
-            callback: async () => {
-              await this.update({
-                "system.nivel":                 Math.min(20, lvl + 1),
-                "system.defensas.vida.max":     maxHP + avg,
-                "system.defensas.vida.value":   curHP + avg,
-              });
-              ui.notifications.info(`${this.name}: ¡Nivel ${lvl + 1}! +${avg} PV máx (promedio).`);
-              resolve(avg);
-            },
-          },
-          cancel: { icon: "<i class='fas fa-times'></i>", label: "Cancelar", callback: () => resolve(null) },
-        },
-        default: "roll",
-      }, { classes: ["dialog", "forces-roll-dlg-win"] }).render(true);
-    });
-  }
+  levelUp()   { return levelUpDialog(this); }
+  shortRest() { return shortRestDialog(this); }
+  recarga()   { return recargaDialog(this); }
 
-  async shortRest() {
-    const dado  = this.system.vidaDado ?? 6;
-    const mod   = this.system.caracteristicas.aguante.modificador;
-    const avg   = Math.max(1, Math.floor(dado / 2) + 1 + mod);
-    const maxHP = this.system.defensas.vida.max ?? 0;
-    const curHP = this.system.defensas.vida.value ?? 0;
-    const maxEC = this.system.defensas.energiaCaotica.max ?? 0;
-
-    return new Promise(resolve => {
-      new Dialog({
-        title: "💤 Descanso Corto",
-        content: `<div style="padding:10px 4px">
-          <p>Recuperas PV con tu dado de vida y restauras toda tu EC:</p>
-          <p><strong>1d${dado}</strong> + mod Aguante (${mod >= 0 ? "+" : ""}${mod}) · Promedio: <strong>${avg}</strong></p>
-          <p style="color:#888;font-size:11px">PV actuales: ${curHP} / ${maxHP} · EC: → ${maxEC}</p>
-        </div>`,
-        buttons: {
-          roll: {
-            icon: "<i class='fas fa-dice'></i>", label: "Tirar dado de vida",
-            callback: async () => {
-              const roll   = new Roll(`1d${dado}+${mod}`);
-              await roll.evaluate();
-              const healed = Math.max(1, roll.total);
-              const newHP  = Math.min(maxHP, curHP + healed);
-              await this.update({
-                "system.defensas.vida.value":           newHP,
-                "system.defensas.energiaCaotica.value": maxEC,
-              });
-              await roll.toMessage({
-                speaker: ChatMessage.getSpeaker({ actor: this }),
-                flavor:  `<strong>Descanso Corto</strong> — Recupera ${newHP - curHP} PV · EC restaurada (${maxEC})`,
-              });
-              resolve(healed);
-            },
-          },
-          avg: {
-            icon: "<i class='fas fa-calculator'></i>", label: `Promedio (+${avg} PV)`,
-            callback: async () => {
-              const newHP = Math.min(maxHP, curHP + avg);
-              await this.update({
-                "system.defensas.vida.value":           newHP,
-                "system.defensas.energiaCaotica.value": maxEC,
-              });
-              ui.notifications.info(`${this.name}: Descanso corto — recupera ${newHP - curHP} PV y EC restaurada.`);
-              resolve(avg);
-            },
-          },
-          cancel: { icon: "<i class='fas fa-times'></i>", label: "Cancelar", callback: () => resolve(null) },
-        },
-        default: "roll",
-      }, { classes: ["dialog", "forces-roll-dlg-win"] }).render(true);
-    });
-  }
-
-  async recarga() {
-    const dado  = this.system.vidaDado ?? 6;
-    const mod   = this.system.caracteristicas.caos.modificador;
-    const avg   = Math.max(1, Math.floor(dado / 2) + 1 + mod);
-    const maxEC = this.system.defensas.energiaCaotica.max ?? 0;
-    const curEC = this.system.defensas.energiaCaotica.value ?? 0;
-
-    return new Promise(resolve => {
-      new Dialog({
-        title: "✦ Recarga de Energía Caótica",
-        content: `<div style="padding:10px 4px">
-          <p>Recuperas EC en un descanso corto:</p>
-          <p><strong>1d${dado}</strong> + mod Caos (${mod >= 0 ? "+" : ""}${mod}) · Promedio: <strong>${avg}</strong></p>
-          <p style="color:#888;font-size:11px">EC actuales: ${curEC} / ${maxEC}</p>
-        </div>`,
-        buttons: {
-          roll: {
-            icon: "<i class='fas fa-dice'></i>", label: "Tirar",
-            callback: async () => {
-              const roll   = new Roll(`1d${dado}+${mod}`);
-              await roll.evaluate();
-              const gained = Math.max(1, roll.total);
-              const newEC  = Math.min(maxEC, curEC + gained);
-              await this.update({ "system.defensas.energiaCaotica.value": newEC });
-              await roll.toMessage({
-                speaker: ChatMessage.getSpeaker({ actor: this }),
-                flavor:  `<strong>Recarga ✦</strong> — Recupera ${newEC - curEC} EC`,
-              });
-              resolve(gained);
-            },
-          },
-          avg: {
-            icon: "<i class='fas fa-calculator'></i>", label: `Promedio (+${avg} EC)`,
-            callback: async () => {
-              const newEC = Math.min(maxEC, curEC + avg);
-              await this.update({ "system.defensas.energiaCaotica.value": newEC });
-              ui.notifications.info(`${this.name}: Recarga — recupera ${newEC - curEC} EC.`);
-              resolve(avg);
-            },
-          },
-          cancel: { icon: "<i class='fas fa-times'></i>", label: "Cancelar", callback: () => resolve(null) },
-        },
-        default: "roll",
-      }, { classes: ["dialog", "forces-roll-dlg-win"] }).render(true);
-    });
-  }
-
+  // Long rest: no requiere diálogo. Restaura PV, EC y todos los usos.
   async longRest() {
     const updates = [];
     for (const item of this.items.contents) {
