@@ -73,5 +73,8 @@ Hooks.once("ready", () => {
   registerGlobalChatHandlers();
 });
 
-// Hook legacy mantenido por si hay binding adicional needed; ya no es crítico.
-Hooks.on("renderChatMessage", (_msg, html) => registerChatHandlers(html));
+// Binding por mensaje (V11/V12: renderChatMessage. V13: renderChatMessageHTML).
+// Adicional a la delegación global de registerGlobalChatHandlers(). Si una falla,
+// la otra cubre.
+Hooks.on("renderChatMessage",     (_msg, html) => registerChatHandlers(html));
+Hooks.on("renderChatMessageHTML", (_msg, html) => registerChatHandlers(html));

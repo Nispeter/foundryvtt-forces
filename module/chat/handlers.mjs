@@ -182,6 +182,24 @@ export function registerGlobalChatHandlers() {
   }, true); // capture=true
 }
 
-// Mantengo el nombre antiguo para no romper imports, pero ya no hace nada per-message
-// (la delegación global hace todo el trabajo). Se llama desde forces.mjs por compat.
-export function registerChatHandlers() { /* no-op */ }
+// Binding directo por mensaje: para cada botón con data-action, attachamos el
+// click handler. Es belt-and-suspenders por si la delegación global falla
+// (V13 con Shadow DOM, módulos que llaman stopImmediatePropagation, etc.).
+// Idempotente — usa data-forces-bound para no doble-bind.
+export function registerChatHandlers(html) {
+  const root = html?.[0] ?? html;
+  if (!root || typeof root.querySelectorAll !== "function") return;
+  root.querySelectorAll("[data-action]").forEach(btn => {
+    const action = btn.dataset.action;
+    if (!ACTION_HANDLERS[action]) return;
+    if (btn.dataset.forcesBound === "1") return;
+    btn.dataset.forcesBound = "1";
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      console.log(`Forces | direct chat button: ${action}`);
+      try { ACTION_HANDLERS[action](btn); }
+      catch (err) { console.error(`Forces | chat handler error (${action}):`, err); }
+    });
+  });
+}
