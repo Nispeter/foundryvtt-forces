@@ -2,6 +2,46 @@
 
 All notable changes to the Forces system are documented here.
 
+## [0.5.0] — 2026-05-30
+
+### Added
+- **Refactor estructural**: módulo dividido en subcarpetas por dominio (`constants/`, `helpers/`, `dialogs/`, `chat/`, `documents/`, `sheets/`). `forces.mjs` pasó de 347 → 74 líneas, `actor.mjs` de 641 → ~260.
+- **Rango SS** (puntos=8, modificador +30). Nueva tabla de modificadores: S+ ahora +20 (era +15). SS solo alcanzable vía bonus.
+- **Categoría Loot** para items, con su propia sección "💰 Loot" en sheet.
+- **Slots de tarjeta en NPCs** (campo `baseSlots` agregado al schema de NPC).
+- **Inputs ± en vida y EC**: escribir `+5` o `-3` aplica como delta sobre el valor actual.
+- **Sort por grupo de items** (armas, equipo, feats, caos, tarjetas, loot) con persistencia en flag del actor.
+- **Drag-and-drop reorder** en todas las secciones de items, incluido favoritos. Usa el sistema dragDrop nativo de Foundry con override de `_onSortItem` para respetar categorías.
+- **Tab Config** con selector de tamaño de token (S/M/L) y picker de color de página.
+- **Tooltip de descomposición de stat** en bio tab (al hover, 500ms delay, ventana flotante): muestra rango, bonus permanente, items que aportan, y maestrías asociadas.
+- **Dropdown de buffs agrupado** por categoría: Características, Defensas, Recursos, Habilidades.
+- **Buffs muestran el bonificador computado** en el item-sheet (numérico si el item está en un actor, simbólico si no).
+- **Medidas distintas por tipo de área**: rect ahora soporta ancho × alto. UI condicional en item-sheet según `areaEfectoTipo`.
+- **R rota templates** durante placement: 15° para cono/línea, 90° para rect. Shift+R rota al revés.
+- **Alt durante placement**: snap más fino (incluye centros y midpoints además de esquinas).
+- **bonusDf/bonusAtaque/bonusReaccion** de items equipados ahora se aplican efectivamente a defensaCorporal y rolls de ataque/reacción.
+
+### Fixed
+- **Place-area roto**: rewrite completo usando MeasuredTemplate canónico + DOM events sobre `canvas.app.view` (no PIXI events). Cross-version V11/V12/V13. Fallback a creación directa si el preview workflow falla.
+- **Cuadrado/rect invisible** en plantillas: con `direction=0`, Foundry interpretaba el bounding box como `distance × 0`. Ahora calcula `direction=atan2(h,w)` y `distance=hypot(w,h)`.
+- **Snap a puntos medios de aristas** en vez de esquinas: el código pasaba `mode: 2` literalmente, que en V12+ corresponde a `EDGE_MIDPOINT`. Ahora usa `VERTEX (4)` para esquinas (intersecciones).
+- **EC máx no se recalculaba** tras buff de caos: ahora `_applyItemBuffs` re-aplica la fórmula `caos.mod × 7` preservando deltas vía addToPath.
+- **Tooltip de items se destruía al clickear**: `useItem` actualiza usos/EC y dispara re-render → el `.item-expand` adentro del sheet HTML se perdía. Ahora el popup vive en `document.body` y sobrevive re-renders.
+- **Tooltip no reaparecía al saltar de nombre en nombre**: `_close` mataba el `showTimer` pendiente del siguiente item. Separado `_destroyPopup` (solo popup) de cleanup de timers.
+- **Tooltip aparecía con hover de botones/badges**: ahora solo se dispara con `.item-expand-trigger` (img + nombre).
+- **Drag-and-drop reorder no disparaba**: Foundry's ActorSheet usa `dragSelector: ".item-list .item"` por default. Configurado a `.item-entry-wrap` en `dragDrop` de `defaultOptions` + override de `_onSortItem` para que siblings sean de la misma categoría.
+- **`<img>` capturaba el drag**: el img tiene `draggable=true` por default y robaba el evento del wrap. Forzado a `false`.
+- **Buffs de atk/reacción nunca se aplicaban**: estaban en el schema pero no se sumaban a ningún roll. Ahora `_applyItemBuffs` acumula en `sys.bonifEquipados` y los rolls los usan.
+- **Place-area fallaba silenciosamente en V13**: cambio a delegación global de eventos en `document.body` con capture phase + binding directo via `renderChatMessageHTML` (deprecated `renderChatMessage` en V13).
+
+### Changed
+- **Maestrías ya NO contribuyen al modificador base de la característica** (cambio de diseño). El bonus de maestría aplica SOLO en `rollMaestria` para esa tirada específica. Antes contaminaban todas las tiradas de la car asociada.
+- **Sección "Bonif. Estadística" deprecada** en el item-sheet (oculta del dropdown "Añadir sección"). Usar buffs en su lugar. Items legacy con la sección habilitada siguen funcionando.
+- **Botón "+ Añadir" compactado** a un cuadradito de 22×20px con tooltip al hover. Antes era ancho con texto.
+- **Slots libres explícitos** en el badge de tarjetas: `5/6 (1 libres)` en vez de solo `5/6`.
+- **Fuente +10%** en window-content via CSS `zoom`.
+- **Schema max de puntos** subido de 7 a 8 (para rango SS).
+
 ## [0.4.0] — 2026-05-11
 
 ### Added
